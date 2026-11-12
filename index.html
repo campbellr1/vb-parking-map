@@ -1,0 +1,1439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Virginia Beach Parking Map</title>
+<meta name="description" content="Public parking supply compared with food and beverage and retail activity across Virginia Beach, with 55 parking locations, rates, space counts and resident pass filters.">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;500;600&family=Spectral:ital,wght@1,400;1,500&display=swap">
+</head>
+<body>
+<style>
+/* Layout: a working chart. Filters and list in a side rail, the chart fills the rest.
+   The look borrows from NOAA nautical charts: buff land, blue shoals, magenta limits. */
+:root{
+  --bg:#f3f6f7; --panel:#ffffff; --line:#d5dfe3; --ink:#14303c; --soft:#566b75; --faint:#7d8f98;
+  --accent:#0a4fa8; --free:#11784a; --paid:#0a4fa8; --posted:#5c6a72; --magenta:#a51a70; --warn:#9a5b00; --food:#c2410c; --retail:#6b3fa0;
+  --pin-fg:#ffffff; --pin-edge:#ffffff; --shadow:rgba(16,40,52,.28);
+  --land:#f4e9c6; --land-out:#e7e3d5; --deep:#f6fbfd; --shoal2:#dceff7; --shoal1:#bddff0; --water:#bddff0;
+  --marsh:#c8dbad; --parkland:#dfe6b4; --mil:#e2d6b4; --coast:#6f7f6a; --road:#b49f72; --road2:#9c7f4b; --hwy:#7a5a2c;
+  --halo:rgba(246,238,208,.9); --seahalo:rgba(240,249,253,.9); --waterink:#2b6d8f; --chip:#eef3f5; --tilefilter:none;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:Barlow,"Helvetica Neue",Arial,sans-serif;
+  --chart:Spectral,Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1519; --panel:#131e24; --line:#27363e; --ink:#e4edf0; --soft:#a3b5bd; --faint:#7f929b;
+  --accent:#7db4ff; --free:#5fd69b; --paid:#7db4ff; --posted:#a9b6bd; --magenta:#ee6dbd; --warn:#f0b561; --food:#ff9d66; --retail:#c5a3ff;
+  --pin-fg:#071318; --pin-edge:#071318; --shadow:rgba(0,0,0,.55);
+  --land:#2c2a1f; --land-out:#1e1e1a; --deep:#0a1820; --shoal2:#0f2733; --shoal1:#163a4c; --water:#163a4c;
+  --marsh:#2d3b26; --parkland:#2f3722; --mil:#343022; --coast:#7d8a78; --road:#5c5540; --road2:#7c6f4e; --hwy:#a58c58;
+  --halo:rgba(38,36,26,.88); --seahalo:rgba(10,24,32,.85); --waterink:#83bfdc; --chip:#1b2930; --tilefilter:invert(1) hue-rotate(180deg) brightness(.88) contrast(.88) saturate(.6);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0d1519; --panel:#131e24; --line:#27363e; --ink:#e4edf0; --soft:#a3b5bd; --faint:#7f929b;
+  --accent:#7db4ff; --free:#5fd69b; --paid:#7db4ff; --posted:#a9b6bd; --magenta:#ee6dbd; --warn:#f0b561; --food:#ff9d66; --retail:#c5a3ff;
+  --pin-fg:#071318; --pin-edge:#071318; --shadow:rgba(0,0,0,.55);
+  --land:#2c2a1f; --land-out:#1e1e1a; --deep:#0a1820; --shoal2:#0f2733; --shoal1:#163a4c; --water:#163a4c;
+  --marsh:#2d3b26; --parkland:#2f3722; --mil:#343022; --coast:#7d8a78; --road:#5c5540; --road2:#7c6f4e; --hwy:#a58c58;
+  --halo:rgba(38,36,26,.88); --seahalo:rgba(10,24,32,.85); --waterink:#83bfdc; --chip:#1b2930; --tilefilter:invert(1) hue-rotate(180deg) brightness(.88) contrast(.88) saturate(.6);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.42 var(--body);font-variant-numeric:tabular-nums}
+button,input{font:inherit;color:inherit}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--magenta);outline-offset:2px}
+
+.app{height:100%;display:grid;grid-template-columns:minmax(340px,396px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"head map" "ctrl map"}
+.head{grid-area:head;background:var(--panel);border-right:1px solid var(--line);padding-block:14px 12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.ctrl{grid-area:ctrl;background:var(--panel);border-right:1px solid var(--line);overflow:auto;min-height:0;padding-block:0 24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.eyebrow{font:600 12px/1 var(--display);letter-spacing:.09em;text-transform:uppercase;color:var(--soft)}
+h1{margin:5px 0 8px;font:600 30px/1.02 var(--display);letter-spacing:.005em;text-wrap:balance}
+.season{margin:10px 0 0;padding-top:9px;border-top:1px solid var(--line);font-size:13.5px;line-height:1.35;color:var(--soft)}
+.season b{color:var(--ink)}
+.sub{margin:0 0 10px;font-size:14.5px;line-height:1.35;color:var(--soft);max-width:44ch}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0;border-block:1px solid var(--line)}
+.kpis div{padding:8px 8px 8px 0;min-width:0}
+.kpis div+div{padding-left:8px;border-left:1px solid var(--line)}
+.kpis dt{order:2;font-size:11.5px;line-height:1.25;color:var(--soft)}
+.kpis dd{margin:0 0 2px;font:600 21px/1 var(--display);white-space:nowrap;color:var(--ink)}
+.kpis div{display:flex;flex-direction:column}
+.findings{padding:10px 12px;border:1px solid var(--line);border-radius:5px;background:var(--bg)}
+.findings h2{margin:0 0 6px;font:600 13px/1.1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.findings ol{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.38}
+.findings li::marker{font:600 13px var(--display);color:var(--accent)}
+.stamp{padding:7px 9px;border-left:3px solid var(--line);background:var(--bg);color:var(--soft)}
+.about h3{margin:14px 0 5px;font:600 13px/1.1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--ink)}
+.about .src li{margin-bottom:5px}
+.season b{font-weight:600}
+
+.when{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding-block:12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:3}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label,.lab{font:600 12px/1.1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--soft)}
+.field input[type=date]{width:100%;height:36px;padding:0 8px;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+.stayv{font:600 12px/1.1 var(--display);letter-spacing:.02em;text-transform:none;color:var(--ink)}
+.field input[type=range]{width:100%;height:36px;margin:0;accent-color:var(--accent)}
+.quick{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.quick button{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:4px;background:transparent;font-size:13px;cursor:pointer}
+.quick button:hover{border-color:var(--accent)}
+
+.filters{padding-block:12px;display:flex;flex-direction:column;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 9px;border:1px solid var(--line);border-radius:4px;background:transparent;font-size:13.5px;cursor:pointer;color:var(--soft)}
+.chip svg{width:14px;height:14px;flex:none}
+.chip em{font-style:normal;color:inherit;opacity:.8}
+.chip[aria-pressed="true"]{background:var(--chip);color:var(--ink);border-color:var(--soft)}
+.chip.freeonly[aria-pressed="true"]{background:var(--free);border-color:var(--free);color:var(--pin-fg)}
+#q{width:100%;height:36px;padding:0 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+.key{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--soft)}
+.key span{display:inline-flex;align-items:center;gap:5px}
+.key i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+.group{margin-top:10px}
+.group h2{margin:0;padding-block:8px 5px;font:600 14px/1.1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--soft);border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 8px}
+.group h2 small{font:inherit;letter-spacing:0;text-transform:none;font-weight:500;color:var(--faint)}
+.row{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:8px;align-items:start;width:100%;padding:8px 2px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;cursor:pointer}
+.row:hover{background:var(--chip)}
+.row[aria-current="true"]{background:var(--chip);box-shadow:inset 3px 0 0 var(--magenta)}
+.row svg{width:15px;height:15px;margin-top:3px;color:var(--soft)}
+.row b{display:block;font-weight:600;line-height:1.2}
+.row small{display:block;margin-top:1px;font-size:13px;color:var(--soft);overflow-wrap:anywhere}
+.tag{font:600 14px/1.5 var(--display);padding:0 6px;border-radius:3px;white-space:nowrap;color:var(--pin-fg);background:var(--paid)}
+.tag.free{background:var(--free)}
+.tag.posted{background:var(--posted)}
+.rt{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.row .rt small{margin:0;font-size:12.5px;white-space:nowrap;font-weight:500;color:var(--ink)}
+.row .rt small.none{font-weight:400;color:var(--faint)}
+.sort{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sort button{height:30px;padding:0 10px;border:1px solid var(--line);border-radius:4px;background:transparent;font-size:13px;cursor:pointer;color:var(--soft)}
+.sort button[aria-pressed="true"]{background:var(--chip);border-color:var(--soft);color:var(--ink)}
+.pin .n{font-weight:500;margin-left:1px;padding-left:4px;border-left:1px solid currentColor;line-height:1}
+.cap{margin-top:8px;padding:6px 9px;background:var(--chip);border-radius:4px;font-size:14px}
+.cap b{font:600 21px/1.1 var(--display)}
+.cap small{display:block;margin-top:2px;font-size:12.5px;line-height:1.3;color:var(--soft)}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-block:12px 2px;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.tabs button{height:38px;border:0;background:transparent;font:600 16px/1 var(--display);letter-spacing:.02em;color:var(--soft);cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--accent);color:var(--pin-fg)}
+#foodp{display:flex;flex-direction:column;gap:10px;padding-block:10px 4px}
+#foodp[hidden]{display:none}
+.lead{margin:0;font-size:14px;line-height:1.35;color:var(--soft)}
+.sw{width:12px;height:12px;display:inline-block;flex:none}
+.sw.f{background:var(--food);border-radius:50%}
+.sw.r{background:var(--retail);border-radius:2px}
+.arow{display:block;width:100%;padding:8px 2px;border:0;border-bottom:1px solid var(--line);background:transparent;text-align:left;cursor:pointer}
+.arow:hover,.arow[aria-current="true"]{background:var(--chip)}
+.arow b{display:block;font-weight:600;line-height:1.2}
+.bar{display:grid;grid-template-columns:minmax(0,1fr) 76px;align-items:center;gap:8px;margin-top:3px;font-size:12.5px;color:var(--soft)}
+.mapwrap.food.lod0 #blobs,.mapwrap.food.lod1 #blobs{z-index:2}
+#pins{z-index:1}
+.mapwrap.passon #pins{z-index:3}
+.bar i{display:block;height:7px;min-width:1px;border-radius:0 2px 2px 0}
+.bar i.f{background:var(--food)} .bar i.r{background:var(--retail)} .bar i.p{background:var(--paid)}
+.bar span{white-space:nowrap}
+.vt{display:inline-block;margin-left:5px;padding:0 4px;font-size:11.5px;font-style:normal;font-weight:500;line-height:1.35;border:1px solid var(--free);border-radius:3px;color:var(--free)}
+#blobs{position:absolute;inset:0;pointer-events:none}
+#tiles{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+#tiles img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-drag:none}
+.mapwrap.streets #tiles img.b{filter:var(--tilefilter)}
+.mapwrap.tiles{background:var(--chip)}
+.mapwrap.tiles #world > :not(.limit){display:none}
+.mapwrap.tiles #lbl,.mapwrap.tiles #grat,.mapwrap.tiles #ticks,.mapwrap.tiles .rose,.mapwrap.tiles .chartnote{display:none}
+.mapwrap.tiles .scale{padding:4px 6px 5px;background:var(--panel);border-radius:3px;box-shadow:0 1px 2px var(--shadow)}
+.basemap{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;z-index:8;border-radius:4px;box-shadow:0 1px 2px var(--shadow)}
+.basemap button{height:32px;padding:0 10px;border:1px solid var(--line);background:var(--panel);font:500 14.5px/1 var(--display);letter-spacing:.02em;cursor:pointer}
+.basemap button+button{border-left:0}
+.basemap button:first-child{border-radius:4px 0 0 4px}
+.basemap button:last-child{border-radius:0 4px 4px 0}
+.basemap button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--pin-fg)}
+.basemap button[aria-disabled="true"]{color:var(--faint)}
+.tilenote{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(50px + env(safe-area-inset-bottom,0px));max-width:min(320px,calc(100% - 20px));padding:8px 10px;background:var(--panel);border:1px solid var(--line);border-radius:5px;box-shadow:0 4px 14px var(--shadow);font-size:13.5px;line-height:1.35;z-index:9}
+.attrib{position:absolute;right:0;bottom:0;max-width:calc(100% - 240px);padding:2px 6px calc(2px + env(safe-area-inset-bottom,0px));padding-right:max(6px,env(safe-area-inset-right,0px));background:var(--panel);opacity:.92;font-size:11px;line-height:1.3;color:var(--soft);z-index:5;border-top-left-radius:4px}
+.attrib a{color:var(--soft)}
+.blob{position:absolute;left:0;top:0;pointer-events:auto;display:flex;align-items:center;justify-content:center;padding:0;border:1.5px solid var(--pin-edge);border-radius:50%;background:var(--food);color:var(--pin-fg);font:600 14px/1 var(--display);cursor:pointer;box-shadow:0 1px 3px var(--shadow);opacity:.9}
+.blob.ronly{background:var(--retail);border-radius:6px}
+.blob.sel{outline:3px solid var(--magenta);outline-offset:1px;opacity:1}
+.blob em{position:absolute;right:-8px;bottom:-6px;min-width:22px;height:18px;padding:0 3px;display:flex;align-items:center;justify-content:center;font:600 12px/1 var(--display);font-style:normal;background:var(--retail);color:var(--pin-fg);border:1.5px solid var(--pin-edge);border-radius:3px}
+.mapwrap.food .pin:not(.cl){width:10px;height:10px;padding:0;border-radius:50%;opacity:.75}
+.mapwrap.food .pin:not(.cl) span,.mapwrap.food .pin:not(.cl) svg{display:none}
+.mapwrap.food.passon .pin:not(.cl){width:14px;height:14px;opacity:1}
+.mapwrap.food .pin.sel{opacity:1;width:14px;height:14px}
+.near{margin:8px 0 0;padding:0;list-style:none}
+.near li{margin:0}
+.near button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;width:100%;padding:4px 0;border:0;border-top:1px solid var(--line);background:transparent;text-align:left;cursor:pointer;font-size:14px}
+.near button small{color:var(--soft);font-size:12.5px;white-space:nowrap}
+.empty{padding-block:18px;color:var(--soft)}
+
+.about{margin-top:22px;font-size:13.5px;color:var(--soft)}
+.about h2{margin:0 0 8px;padding-top:14px;border-top:1px solid var(--line);font:600 17px/1.15 var(--display);letter-spacing:.02em;color:var(--ink)}
+.about p{margin:0 0 8px;max-width:62ch}
+.about ul{margin:0 0 8px;padding-left:16px}
+.about li{margin-bottom:3px}
+
+.mapwrap{grid-area:map;position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--land-out);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.mapwrap.drag{cursor:grabbing}
+.mapwrap svg.base,.mapwrap svg.labels{position:absolute;inset:0;width:100%;height:100%;display:block}
+svg.labels{pointer-events:none}
+#pins{position:absolute;inset:0;pointer-events:none}
+
+.city{fill:var(--land)} .parkland{fill:var(--parkland)} .mil{fill:var(--mil)} .marsh{fill:var(--marsh)}
+.wfill{fill:var(--water)} .wline{fill:none;stroke:var(--water);stroke-linecap:round;stroke-linejoin:round}
+.deep{fill:var(--deep)} .band1{fill:none;stroke:var(--shoal2);stroke-width:3400} .band2{fill:none;stroke:var(--shoal1);stroke-width:1300}
+.coast{fill:none;stroke:var(--coast);stroke-width:1;vector-effect:non-scaling-stroke}
+.limit{fill:none;stroke:var(--magenta);stroke-width:1.6;stroke-dasharray:9 4 2 4;vector-effect:non-scaling-stroke}
+.r{fill:none;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.r0{stroke:var(--road);stroke-width:1} .r1{stroke:var(--road2);stroke-width:1.5} .r2{stroke:var(--hwy);stroke-width:2.6}
+.bridge{stroke:var(--hwy);stroke-width:1.6;stroke-dasharray:5 3}
+.grid-st{stroke:var(--road);stroke-width:1} .grid-av{stroke:var(--road2);stroke-width:2}
+.bw{stroke:var(--coast);stroke-width:1.5;stroke-dasharray:2 3}
+.st{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke;stroke-width:4;pointer-events:none}
+.st.free{stroke:var(--free)} .st.paid{stroke:var(--paid)} .st.off{stroke:var(--faint);stroke-dasharray:2 5;stroke-width:2}
+.st.sel{stroke:var(--magenta)}
+.zone{fill:var(--paid);fill-opacity:.1;stroke:none;pointer-events:none}
+.zone.free{fill:var(--free)}
+.grat{stroke:var(--magenta);stroke-opacity:.14;stroke-width:1}
+
+.t{font:500 12px var(--body);fill:var(--ink);paint-order:stroke;stroke:var(--halo);stroke-width:3px;stroke-linejoin:round}
+.t.place{font:600 13px var(--display);letter-spacing:.05em;text-transform:uppercase;fill:var(--soft)}
+.t.other{font:600 15px var(--display);letter-spacing:.2em;text-transform:uppercase;fill:var(--faint);stroke:none}
+.t.road{font:500 11.5px var(--display);letter-spacing:.03em;fill:var(--soft)}
+.t.num{font:600 11.5px var(--display);fill:var(--waterink);stroke:var(--seahalo)}
+.t.av{font:500 11.5px var(--display);letter-spacing:.06em;fill:var(--soft)}
+.t.wat{font:italic 400 13px var(--chart);fill:var(--waterink);stroke:var(--seahalo)}
+.t.sea{font:italic 400 19px var(--chart);letter-spacing:.32em;fill:var(--waterink);stroke:none}
+.t.tick{font:500 10.5px var(--display);fill:var(--magenta);stroke:var(--seahalo);letter-spacing:.03em}
+.t.mil{font:500 11px var(--display);letter-spacing:.05em;fill:var(--soft)}
+
+.pin{position:absolute;left:0;top:0;pointer-events:auto;display:inline-flex;align-items:center;gap:3px;height:24px;padding:0 6px;border:1.5px solid var(--pin-edge);border-radius:5px;background:var(--paid);color:var(--pin-fg);font:600 13.5px/1 var(--display);cursor:pointer;box-shadow:0 1px 3px var(--shadow);will-change:transform}
+.pin svg{width:13px;height:13px;flex:none}
+.pin.free{background:var(--free)} .pin.posted{background:var(--posted)}
+.pin.sel{outline:3px solid var(--magenta);outline-offset:1px;z-index:6}
+.pin:hover{z-index:5}
+.lod0 .pin:not(.cl),.lod1 .pin:not(.cl){width:20px;height:20px;padding:0;justify-content:center;border-radius:50%}
+.lod0 .pin:not(.cl) span,.lod1 .pin:not(.cl) span{display:none}
+.lod0 .pin:not(.cl) svg,.lod1 .pin:not(.cl) svg{width:11px;height:11px}
+.pin.cl{height:28px;min-width:28px;justify-content:center;border-radius:14px;background:var(--ink);color:var(--panel);font-size:15px;border-color:var(--panel)}
+.pin[hidden]{display:none}
+
+.views{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px));right:calc(58px + env(safe-area-inset-right,0px));display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;z-index:8;padding:2px}
+.views::-webkit-scrollbar{display:none}
+.views button{flex:none;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:4px;background:var(--panel);font:500 14.5px/1 var(--display);letter-spacing:.02em;cursor:pointer;box-shadow:0 1px 2px var(--shadow)}
+.views button[aria-pressed="true"]{background:var(--accent);color:var(--pin-fg);border-color:var(--accent)}
+.zoom{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));display:flex;flex-direction:column;z-index:8;box-shadow:0 1px 2px var(--shadow);border-radius:4px}
+.zoom button{width:38px;height:38px;border:1px solid var(--line);background:var(--panel);font:500 22px/1 var(--body);cursor:pointer}
+.zoom button:first-child{border-radius:4px 4px 0 0;border-bottom:0}
+.zoom button:last-child{border-radius:0 0 4px 4px}
+.scale{position:absolute;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(52px + env(safe-area-inset-bottom,0px));font:600 12px/1 var(--display);color:var(--ink);z-index:4;pointer-events:none}
+.scale i{display:block;height:6px;margin-top:3px;border:1.5px solid var(--ink);border-top:0}
+.rose{position:absolute;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));width:74px;height:74px;color:var(--magenta);z-index:4;pointer-events:none;opacity:.8}
+.chartnote{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(6px + env(safe-area-inset-bottom,0px));font:italic 400 12px var(--chart);color:var(--soft);z-index:3;pointer-events:none;white-space:nowrap}
+
+.card{position:absolute;top:calc(52px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px));width:min(350px,calc(100% - 20px));max-height:calc(100% - 64px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 22px var(--shadow);z-index:9;padding:12px 14px 14px;cursor:auto;user-select:text;-webkit-user-select:text;touch-action:auto}
+.card .x{position:absolute;top:6px;right:6px;width:32px;height:32px;border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:var(--soft)}
+.card .kind{font:600 12px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--soft);padding-right:30px}
+.card h3{margin:5px 0 6px;font:600 23px/1.08 var(--display);padding-right:18px;text-wrap:balance}
+.price{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.price .tag{font-size:16px;padding:1px 8px}
+.price small{color:var(--soft);font-size:13.5px}
+.addr{display:flex;align-items:center;gap:8px;font-weight:500;overflow-wrap:anywhere}
+.copy{flex:none;height:26px;padding:0 8px;border:1px solid var(--line);border-radius:4px;background:transparent;font-size:12.5px;cursor:pointer}
+.meta{margin:5px 0 0;color:var(--soft);font-size:14px}
+.scroller{overflow-x:auto;margin-top:9px}
+table.rates{border-collapse:collapse;width:100%;font-size:13px}
+table.rates th{font:600 11.5px var(--display);letter-spacing:.05em;text-transform:uppercase;color:var(--soft);text-align:left;padding:2px 6px 2px 0}
+table.rates td{text-align:center;padding:2px 3px;border-left:1px solid var(--line)}
+table.rates td.on{background:var(--chip);font-weight:600;box-shadow:inset 0 -2px 0 var(--magenta)}
+.card ul{margin:9px 0 0;padding-left:16px;font-size:14px}
+.card li{margin-bottom:3px}
+.perk{display:flex;flex-wrap:wrap;gap:4px;margin-top:9px}
+.perk span{font-size:12.5px;padding:1px 6px;border:1px solid var(--line);border-radius:3px;color:var(--soft)}
+.approx{margin-top:8px;font-size:13px;color:var(--warn)}
+.links{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+.links a{display:inline-flex;align-items:center;height:32px;padding:0 10px;border:1px solid var(--line);border-radius:4px;text-decoration:none;font-size:13.5px;font-weight:500}
+.links a.go{background:var(--accent);border-color:var(--accent);color:var(--pin-fg)}
+
+@media (max-width:860px){
+  html,body{height:auto}
+  .app{display:grid;height:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 62vh auto;grid-template-areas:"head" "map" "ctrl"}
+  .head,.ctrl{border-right:0}
+  .ctrl{overflow:visible}
+  .when{position:static}
+  .mapwrap{min-height:360px}
+  h1{font-size:27px}
+  .card{position:fixed;top:auto;left:0;right:0;bottom:0;width:auto;max-height:68dvh;border-radius:10px 10px 0 0;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .rose{width:54px;height:54px}
+  .chartnote{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-garage" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v2.4H2zM2 6.8h12v2.4H2zM2 10.6h12V13H2z"/></symbol>
+  <symbol id="i-lot" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="M4 1.5h5a4.2 4.2 0 0 1 0 8.4H6.7v4.6H4zM6.7 4v3.4H9A1.7 1.7 0 0 0 9 4z"/></symbol>
+  <symbol id="i-street" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="M8 1a4.5 4.5 0 0 1 4.5 4.5V9H9.2v6H6.8V9H3.5V5.5A4.5 4.5 0 0 1 8 1zM5.6 4.6v1.8h4.8V4.6z"/></symbol>
+  <symbol id="i-ramp" viewBox="0 0 16 16"><g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="8" cy="3" r="1.5"/><path d="M8 4.8V14M3 9c.4 3 2.4 5 5 5s4.600-2 5-5M5.400 7h5.200"/></g></symbol>
+  <symbol id="i-park" viewBox="0 0 16 16"><path fill="currentColor" d="M8 .8l4.600 6.200h-2.400l3.200 4.400H9.200V15H6.800v-3.600H2.600l3.200-4.400H3.400z"/></symbol>
+  <symbol id="i-transit" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="M4 1.500h8a2 2 0 0 1 2 2V12H2V3.500a2 2 0 0 1 2-2zM4 4v3.800h8V4zM3.500 12.600h2.600v2H3.500zm6.400 0h2.600v2H9.900z"/></symbol>
+  <symbol id="i-private" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.300" fill="currentColor"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="head">
+    <div class="eyebrow">Parking access study · Nov. 2026</div>
+    <h1>Virginia Beach Parking Map</h1>
+    <p class="sub">Public parking supply compared with food and beverage and retail activity across the city.</p>
+    <dl class="kpis" id="kpis"></dl>
+    <p class="season" id="season"></p>
+  </header>
+
+  <section class="ctrl" aria-label="Filters and parking list">
+    <div class="tabs" id="tabs" role="group" aria-label="Choose a view">
+      <button type="button" data-m="food" aria-pressed="true">Food and retail</button>
+      <button type="button" data-m="park" aria-pressed="false">Parking</button>
+    </div>
+
+    <section id="foodp" aria-label="Food and retail by area">
+      <section class="findings" aria-labelledby="kf">
+        <h2 id="kf">Key findings</h2>
+        <ol id="findings"></ol>
+      </section>
+      <p class="lead">Circles show food and beverage (F&amp;B) outlets by area. Squares show stores in major shopping centers. Blue bars count public garage and lot spaces near each area. Select an area to see that parking.</p>
+      <div class="chips" id="layers" role="group" aria-label="Map layers">
+        <button type="button" class="chip" data-l="f" aria-pressed="true"><i class="sw f"></i>Food and beverage</button>
+        <button type="button" class="chip" data-l="r" aria-pressed="true"><i class="sw r"></i>Retail</button>
+        <button type="button" class="chip" id="vshow" aria-pressed="false">Voucher parking only</button>
+      </div>
+      <div class="sort" id="asort" role="group" aria-label="Sort areas">
+        <span class="lab">Sort</span>
+        <button type="button" data-s="f" aria-pressed="true">F&amp;B outlets</button>
+        <button type="button" data-s="r" aria-pressed="false">Retail</button>
+        <button type="button" data-s="p" aria-pressed="false">Public parking</button>
+      </div>
+      <div id="areas"></div>
+    </section>
+
+    <div id="parkp" hidden>
+    <div class="when">
+      <div class="field">
+        <label for="date">Parking on</label>
+        <input type="date" id="date">
+      </div>
+      <div class="field">
+        <label for="stay">Stay <span class="stayv" id="stayv"></span></label>
+        <input type="range" id="stay" min="1" max="10" value="3">
+      </div>
+      <div class="quick">
+        <button type="button" id="today">Today</button>
+        <button type="button" id="summer">Next summer Saturday</button>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div class="chips" id="chips" role="group" aria-label="Filter by type"></div>
+      <div class="sort" id="pass" role="group" aria-label="Filter by resident pass">
+        <span class="lab">Pass</span>
+        <button type="button" data-p="" aria-pressed="true">Any</button>
+        <button type="button" data-p="v" aria-pressed="false">Resident voucher</button>
+        <button type="button" data-p="sr" aria-pressed="false">Senior permit</button>
+        <button type="button" data-p="s" aria-pressed="false">Seasonal permit</button>
+      </div>
+      <input type="search" id="q" placeholder="Search by name or street" aria-label="Search by name or street">
+      <div class="sort" id="sort" role="group" aria-label="Sort the list">
+        <span class="lab">Sort</span>
+        <button type="button" data-s="cost" aria-pressed="true">Lowest cost</button>
+        <button type="button" data-s="spaces" aria-pressed="false">Most spaces</button>
+        <button type="button" data-s="pass" aria-pressed="false">Voucher first</button>
+      </div>
+      <div class="key" aria-label="Pin colors">
+        <span><i style="background:var(--free)"></i>Free on this date</span>
+        <span><i style="background:var(--paid)"></i>Paid</span>
+        <span><i style="background:var(--posted)"></i>Private or signed</span>
+        <span><i style="background:var(--mil);box-shadow:inset 0 0 0 1px var(--road)"></i>Military, no public parking</span>
+        <span><i style="height:0;width:18px;border-radius:0;border-top:2px dashed var(--magenta)"></i>City limits</span>
+      </div>
+    </div>
+
+    <div id="list"></div>
+    </div>
+
+    <section class="about" aria-labelledby="mh">
+      <h2 id="mh">Methods, sources and limitations</h2>
+      <p class="stamp">Prepared Nov. 12, 2026. Rates and capacities verified Nov. 5, 2026. Independent compilation from public sources; not an official City of Virginia Beach product.</p>
+
+      <h3>Method</h3>
+      <ul>
+        <li><b>Parking.</b> 55 locations: city garages and surface lots, Town Center garages, metered and signed street zones, boat ramps, parks, park-and-ride lots and a sample of private lots. Prices are calculated from published rate schedules for the selected date and length of stay.</li>
+        <li><b>Food and beverage.</b> Virginia Department of Health inspection records, filtered to restaurants, bars, cafes, bakeries and hotel restaurants. Closed sites, schools, care facilities, caterers, commissaries and mobile units are excluded. Outlets are assigned to 18 commercial areas by street address.</li>
+        <li><b>Retail.</b> Store counts for major shopping centers, assigned to the nearest commercial area.</li>
+        <li><b>Parking near an area.</b> City garages and public lots within each area's radius, shown in its detail panel. Radii range from 0.6 to 2.8 miles depending on the area's extent, so neighboring areas can share a facility.</li>
+      </ul>
+
+      <h3>Limitations</h3>
+      <ul>
+        <li><b>Base map.</b> The Chart view is simplified from USGS and NOAA reference points, so its shoreline, roads and city limits are approximate and the Town Center street layout is schematic. The Streets view uses OpenStreetMap and the Satellite view uses Esri imagery; both load only where the page is hosted on a standard website. In those views, pin positions are approximate, within about a block at the Oceanfront. Directions links use street addresses and are exact.</li>
+        <li><b>Rates.</b> Meter rates follow the plan adopted by City Council on Dec. 9, 2025, as the current meter page lists no amounts. Flat event and peak-weekend rates are not modeled. Posted signs govern.</li>
+        <li><b>Capacity.</b> City figures are used where published. Values marked ~ are estimates or older listings, with the source given in each detail panel. The city lists the 25th Street Garage at 344 spaces, though its stated garage total implies 532.</li>
+        <li><b>F&amp;B counts.</b> Most records date from 2023 and 2024, so openings and closures since then are not reflected.</li>
+        <li><b>Retail coverage.</b> Major centers only. Strip centers and street-front shops, including most Oceanfront retail, are excluded, so retail is understated. Red Mill Commons' figure includes restaurants. Town Center is listed by sources at 95 and 146 stores; 95 is used.</li>
+        <li><b>Not mapped.</b> Hotel, office, school and shopping center customer lots; Resort Area residential permit zones (permit required 6 p.m. to 6 a.m.); Beach Garden Park and Williams Farm Park, whose locations could not be confirmed; and the former 19th Street lots.</li>
+        <li><b>Resident voucher.</b> Accepted through the HONK app at locations tagged Voucher and at metered spaces around Atlantic Park. The city does not list the 31st Street Garage, Croatan or Sandbridge; Croatan and Sandbridge accept the seasonal permit.</li>
+      </ul>
+
+      <h3>Sources</h3>
+      <ul class="src">
+        <li><a href="https://pw.virginiabeach.gov/city-property/parking" target="_blank" rel="noopener">City of Virginia Beach, Parking Management</a>: rates, capacities, permits, voucher plan</li>
+        <li><a href="https://virginiabeach.gov/connect/blog/new-resident-oceanfront-parking-plan" target="_blank" rel="noopener">City of Virginia Beach, Resident Oceanfront Parking Plan</a>: meter rate schedule</li>
+        <li><a href="https://www.city-data.com/restaurants/VA/index146.html" target="_blank" rel="noopener">Virginia Department of Health inspection records, via City-Data</a>: F&amp;B outlets</li>
+        <li><a href="https://mallgang.com/virginia/city/virginia-beach" target="_blank" rel="noopener">MallGang</a> and <a href="https://en.wikipedia.org/wiki/Red_Mill_Commons" target="_blank" rel="noopener">Wikipedia</a>: shopping center store counts</li>
+        <li><a href="https://www.dcr.virginia.gov/state-parks/parking-fees" target="_blank" rel="noopener">Virginia DCR</a>, <a href="https://www.recreation.gov/sitepass/1284" target="_blank" rel="noopener">Recreation.gov</a>, <a href="https://mrc.virginia.gov/vsrfdf/lynn.shtm" target="_blank" rel="noopener">Virginia Marine Resources Commission</a>: state and federal sites</li>
+        <li><a href="https://en.parkopedia.com/parking/23451/" target="_blank" rel="noopener">Parkopedia</a> and operator pages: private lots and park-and-ride</li>
+        <li><a href="https://www.topoquest.com/place/virginia/lake/lake-holly/1478777" target="_blank" rel="noopener">USGS place names, via TopoQuest</a> and <a href="https://tidesandcurrents.noaa.gov/benchmarks/8639208.html" target="_blank" rel="noopener">NOAA</a>: base map reference points</li>
+      </ul>
+
+      <h3>Contacts</h3>
+      <p>Parking Management: 757-385-2900, parkinghelp@vbgov.com. Street parking at Chic's Beach, Croatan and Sandbridge: Traffic Engineering, 757-385-4131.</p>
+    </section>
+  </section>
+
+  <main class="mapwrap" id="map" tabindex="0" aria-label="Map of parking in Virginia Beach. Use arrow keys to pan and plus or minus to zoom.">
+    <div id="tiles" aria-hidden="true"></div>
+    <svg class="base" id="base" aria-hidden="true"><g id="world"></g></svg>
+    <svg class="labels" id="labels" aria-hidden="true"><g id="grat"></g><g id="ticks"></g><g id="lbl"></g></svg>
+    <div id="blobs"></div>
+    <div id="pins"></div>
+    <div class="views" id="views" role="group" aria-label="Jump to an area"></div>
+    <div class="zoom">
+      <button type="button" id="zin" aria-label="Zoom in">+</button>
+      <button type="button" id="zout" aria-label="Zoom out">&minus;</button>
+    </div>
+    <div class="basemap" id="basemap" role="group" aria-label="Base map">
+      <button type="button" data-b="chart" aria-pressed="true">Chart</button>
+      <button type="button" data-b="streets" aria-pressed="false">Streets</button>
+      <button type="button" data-b="satellite" aria-pressed="false">Satellite</button>
+    </div>
+    <div class="tilenote" id="tilenote" role="status" hidden></div>
+    <div class="attrib" id="attrib" hidden></div>
+    <div class="scale" id="scale"><span id="scalet"></span><i id="scaleb"></i></div>
+    <svg class="rose" viewBox="-50 -50 100 100" aria-hidden="true">
+      <g fill="none" stroke="currentColor" stroke-width="1"><circle r="40"/><circle r="31" stroke-dasharray="1.500 3"/></g>
+      <path fill="currentColor" d="M0-38 5-5 0 0zM38 0 5 5 0 0zM0 38-5 5 0 0zM-38 0-5-5 0 0z"/>
+      <path fill="none" stroke="currentColor" d="M0-38-5-5 0 0M38 0 5-5 0 0M0 38 5 5 0 0M-38 0-5 5 0 0"/>
+      <text y="-42" text-anchor="middle" fill="currentColor" style="font:600 11px var(--display)">N</text>
+    </svg>
+    <div class="chartnote">Base map simplified from USGS and NOAA data. Not for navigation.</div>
+    <aside class="card" id="card" hidden aria-live="polite"></aside>
+  </main>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- projection and helpers ---------- */
+const LON0 = -76.02, LAT0 = 36.75, MX = 89100, MY = 110950;
+const RAD = Math.PI / 180, RM = MX / RAD, mercY = lat => Math.log(Math.tan(Math.PI / 4 + lat * RAD / 2)), M0 = mercY(LAT0);
+const wx = lon => (lon - LON0) * MX, wy = lat => (M0 - mercY(lat)) * RM;   /* Web Mercator, so map tiles line up */
+const unx = x => x / MX + LON0, uny = y => (2 * Math.atan(Math.exp(M0 - y / RM)) - Math.PI / 2) / RAD;
+
+function chaikin(p, closed, it = 2) {
+  for (let n = 0; n < it; n++) {
+    const q = []; const L = p.length;
+    if (!closed) q.push(p[0]);
+    for (let i = 0; i < (closed ? L : L - 1); i++) {
+      const a = p[i], b = p[(i + 1) % L];
+      q.push([a[0]*.75 + b[0]*.25, a[1]*.75 + b[1]*.25], [a[0]*.25 + b[0]*.75, a[1]*.25 + b[1]*.75]);
+    }
+    if (!closed) q.push(p[L - 1]);
+    p = q;
+  }
+  return p;
+}
+const dOf = (pts, closed) => 'M' + pts.map(([x, y]) => wx(x).toFixed(1) + ' ' + wy(y).toFixed(1)).join('L') + (closed ? 'Z' : '');
+const shape = (pts, closed = true, it = 2) => dOf(it ? chaikin(pts, closed, it) : pts, closed);
+function ellipse(lon, lat, rxM, ryM, tilt = 0) {
+  const out = [];
+  for (let i = 0; i < 14; i++) {
+    const t = i / 14 * Math.PI * 2, x = Math.cos(t) * rxM, y = Math.sin(t) * ryM;
+    const c = Math.cos(tilt), s = Math.sin(tilt);
+    out.push([lon + (x*c - y*s) / MX, lat + (x*s + y*c) / MY]);
+  }
+  return out;
+}
+
+/* ---------- Oceanfront street grid, anchored to USGS and NOAA positions ---------- */
+const ANCH = [[0,36.8299],[2,36.8315],[11.5,36.8405],[19.5,36.8479],[24,36.8525],[30.5,36.8590],[40,36.8680],[42,36.8699],[60,36.8850],[89,36.9090]];
+function latOf(n) {
+  for (let i = 1; i < ANCH.length; i++) if (n <= ANCH[i][0]) {
+    const [a, la] = ANCH[i-1], [b, lb] = ANCH[i];
+    return la + (lb - la) * (n - a) / (b - a);
+  }
+  return ANCH[ANCH.length - 1][1];
+}
+const atlLon = lat => -75.9730 - .307 * (lat - 36.8405);
+const SX = .971, SY = .2394;                       // street bearing, west-southwest
+function blk(n, d = 0) {                           // n = street number, d = metres west of Atlantic
+  const la = latOf(n), lo = atlLon(la);
+  return [lo - SX * d / MX, la - SY * d / MY];
+}
+const along = (a, b, d, step = 2) => { const o = []; for (let n = a; n < b; n += step) o.push(blk(n, d)); o.push(blk(b, d)); return o; };
+const across = (n, a, b) => [blk(n, a), blk(n, b)];
+
+/* ---------- geography ---------- */
+const BAY = [[-76.1770,36.9320],[-76.165,36.9285],[-76.150,36.9245],[-76.140,36.9222],[-76.130,36.9199],[-76.120,36.9178],[-76.110,36.9152],[-76.100,36.9120],[-76.0965,36.9098],[-76.0935,36.9085],[-76.0915,36.9072],[-76.0895,36.9085],[-76.0865,36.9120],[-76.075,36.9165],[-76.060,36.9212],[-76.045,36.9258],[-76.030,36.9302],[-76.0199,36.9322],[-76.0125,36.9320],[-76.0065,36.9302],[-76.0030,36.9270]];
+const OCEAN = [[-75.9995,36.9194],[-75.9945,36.9093],[-75.9890,36.8950],[-75.9835,36.8793],[-75.9796,36.8671],[-75.9754,36.8537],[-75.9714,36.8405],[-75.9687,36.8320],[-75.9682,36.8303],[-75.9692,36.8296],[-75.9682,36.8287],[-75.9668,36.8221],[-75.9620,36.8077],[-75.9525,36.7800],[-75.9458,36.7608],[-75.9408,36.7460],[-75.9360,36.7333],[-75.9220,36.6939],[-75.9130,36.6724],[-75.8939,36.6200],[-75.8863,36.6000],[-75.8674,36.5504]];
+const WESTBAY = [[-76.34,36.965],[-76.26,36.958],[-76.23,36.950],[-76.20,36.941]];
+const LIMITS = [[-75.8674,36.5504],[-76.1222,36.5505],[-76.1235,36.6100],[-76.1190,36.6600],[-76.1120,36.6950],[-76.0995,36.7190],[-76.1500,36.7400],[-76.1950,36.7520],[-76.2100,36.7750],[-76.2150,36.8000],[-76.2140,36.8170],[-76.1970,36.8240],[-76.1965,36.8400],[-76.1965,36.8540],[-76.1925,36.8700],[-76.1900,36.8850],[-76.1790,36.8960],[-76.1775,36.9100],[-76.1770,36.9320]];
+const SEA = [...WESTBAY, ...BAY, ...OCEAN, [-75.8490,36.5000],[-75.83,36.42],[-75.55,36.42],[-75.55,37.12],[-76.34,37.12]];
+const CITY = [...BAY, ...OCEAN, ...LIMITS.slice(1)];
+
+const BACKBAY = [[-75.9640,36.7205],[-75.9560,36.7235],[-75.9527,36.7190],[-75.9491,36.7171],[-75.9441,36.7196],[-75.9440,36.7130],[-75.9475,36.7080],[-75.9508,36.7024],[-75.9470,36.6950],[-75.9440,36.6860],[-75.9380,36.6780],[-75.9330,36.6720],[-75.9230,36.6680],[-75.9170,36.6640],[-75.9130,36.6500],[-75.9060,36.6300],[-75.8980,36.6000],[-75.8900,36.5750],[-75.8800,36.5504],[-75.8760,36.5300],[-75.9300,36.5300],[-75.9480,36.5504],[-75.9650,36.5650],[-75.9730,36.5750],[-75.9800,36.5857],[-75.9850,36.5974],[-75.9880,36.6068],[-75.9860,36.6200],[-75.9850,36.6352],[-75.9844,36.6388],[-75.9760,36.6452],[-75.9810,36.6565],[-75.9769,36.6657],[-75.9740,36.6755],[-75.9650,36.6860],[-75.9610,36.6971],[-75.9650,36.7060],[-75.9700,36.7118],[-75.9655,36.7135]];
+const MARSH = [
+  [[-75.9520,36.7270],[-75.9420,36.7240],[-75.9330,36.7050],[-75.9280,36.6900],[-75.9200,36.6720],[-75.9250,36.6690],[-75.9340,36.6740],[-75.9450,36.6880],[-75.9490,36.7000],[-75.9470,36.7100],[-75.9440,36.7190],[-75.9500,36.7190]],
+  [[-75.9900,36.6000],[-75.9850,36.5750],[-75.9700,36.5505],[-75.9550,36.5505],[-75.9650,36.5650],[-75.9730,36.5750],[-75.9800,36.5857],[-75.9850,36.5974]]
+];
+const ISLES = [ellipse(-75.9346,36.6627,900,1100),ellipse(-75.9400,36.6285,800,1300),ellipse(-75.9588,36.6324,600,700),ellipse(-75.9583,36.5640,700,800),ellipse(-75.9485,36.5715,500,800),ellipse(-75.9370,36.6496,500,500)];
+
+const WPOLY = [
+  BACKBAY,
+  [[-76.0870,36.9000],[-76.0800,36.9000],[-76.0690,36.8970],[-76.0640,36.8920],[-76.0680,36.8870],[-76.0740,36.8820],[-76.0790,36.8840],[-76.0860,36.8880],[-76.0880,36.8950]],
+  [[-76.0500,36.9070],[-76.0420,36.9060],[-76.0350,36.9040],[-76.0280,36.8990],[-76.0230,36.8950],[-76.0260,36.8910],[-76.0320,36.8930],[-76.0400,36.8960],[-76.0460,36.8990],[-76.0510,36.9030]],
+  [[-76.0160,36.8895],[-76.0090,36.8900],[-76.0030,36.8860],[-75.9990,36.8800],[-75.9990,36.8740],[-76.0050,36.8720],[-76.0090,36.8770],[-76.0120,36.8830],[-76.0150,36.8860]],
+  [[-76.1775,36.9320],[-76.1785,36.9200],[-76.1710,36.9150],[-76.1640,36.9140],[-76.1660,36.9180],[-76.1740,36.9215],[-76.1755,36.9320]],
+  ellipse(-76.1760,36.7790,1100,1900,.25), ellipse(-76.1720,36.8870,500,800), ellipse(-76.1830,36.8930,420,650),
+  ellipse(-75.9720,36.8181,130,240), ellipse(-75.9709,36.7921,220,420), ellipse(-75.9649,36.7650,240,520),
+  ellipse(-76.0521,36.8768,130,420), ellipse(-76.0944,36.8644,150,240), ellipse(-76.1210,36.9124,230,330),
+  ellipse(-76.1299,36.9170,190,150), ellipse(-76.1388,36.9196,190,130), ellipse(-76.1486,36.9221,300,170),
+  ellipse(-76.1212,36.8897,210,170), ellipse(-76.0332,36.8734,180,240), ellipse(-76.0266,36.9034,220,310)
+];
+const WLINE = [
+  [130,[[-76.0912,36.9078],[-76.0919,36.9040],[-76.0890,36.9000],[-76.0840,36.8950]]],
+  [60,[[-76.0900,36.9030],[-76.0760,36.9045],[-76.0640,36.9068],[-76.0527,36.9088],[-76.0470,36.9060]]],
+  [70,[[-76.0240,36.8935],[-76.0197,36.8907],[-76.0150,36.8880]]],
+  [70,[[-76.0060,36.8725],[-76.0077,36.8701],[-76.0085,36.8650],[-76.0120,36.8630]]],
+  [70,[[-76.0030,36.8735],[-76.0035,36.8650],[-76.0038,36.8560]]],
+  [85,[[-75.9990,36.8770],[-75.9920,36.8785],[-75.9863,36.8793],[-75.9850,36.8740],[-75.9860,36.8690]]],
+  [110,[[-76.0760,36.8860],[-76.0724,36.8820],[-76.0700,36.8740],[-76.0650,36.8690],[-76.0700,36.8640],[-76.0700,36.8590],[-76.0650,36.8555],[-76.0641,36.8520]]],
+  [60,[[-76.0680,36.8700],[-76.0630,36.8724],[-76.0590,36.8720]]],
+  [100,[[-76.0890,36.9000],[-76.0950,36.8960],[-76.1005,36.8940],[-76.1050,36.8900],[-76.1030,36.8800],[-76.1030,36.8685],[-76.1100,36.8640],[-76.1149,36.8629],[-76.1200,36.8580],[-76.1261,36.8535]]],
+  [60,[[-76.1050,36.8890],[-76.1110,36.8895],[-76.1155,36.8882]]],
+  [60,[[-76.1040,36.8860],[-76.1100,36.8830],[-76.1172,36.8815],[-76.1185,36.8730]]],
+  [50,[[-76.0950,36.9030],[-76.1016,36.9012],[-76.1100,36.9000]]],
+  [50,[[-76.0925,36.9045],[-76.0958,36.9026]]],
+  [55,[[-75.9700,36.8296],[-75.9745,36.8300]]],
+  [50,[[-75.9692,36.8297],[-75.9715,36.8298],[-75.9745,36.8303],[-75.9766,36.8313],[-75.9782,36.8330]]],
+  [36,[[-75.9742,36.8300],[-75.9735,36.8280],[-75.9722,36.8263],[-75.9715,36.8245]]],
+  [36,[[-75.9745,36.8298],[-75.9775,36.8270],[-75.9803,36.8236]]],
+  [26,[[-75.9738,36.8345],[-75.9747,36.8382],[-75.9752,36.8415]]],
+  [150,[[-76.2400,36.7180],[-76.1900,36.7290],[-76.1400,36.7300],[-76.1000,36.7180],[-76.0800,36.7000],[-76.0700,36.6800]]],
+  [260,[[-76.0700,36.6800],[-76.0640,36.6650],[-76.0560,36.6400],[-76.0480,36.6180],[-76.0450,36.6000],[-76.0420,36.5850]]],
+  [520,[[-76.0420,36.5850],[-76.0380,36.5700],[-76.0340,36.5560],[-76.0280,36.5300]]],
+  [70,[[-76.0647,36.6843],[-76.0680,36.7100],[-76.0720,36.7350],[-76.0780,36.7560]]],
+  [70,[[-76.0699,36.6779],[-76.0900,36.6840],[-76.1120,36.6900]]],
+  [70,[[-76.0450,36.6000],[-76.0599,36.5946],[-76.0950,36.5800]]],
+  [80,[[-75.9860,36.7143],[-75.9750,36.7180],[-75.9660,36.7190]]],
+  [80,[[-75.9722,36.7118],[-75.9840,36.7050]]],
+  [70,[[-75.9733,36.6754],[-75.9920,36.6760]]],
+  [60,[[-75.9674,36.7265],[-75.9640,36.7205]]]
+];
+const PARKS = [
+  [[-76.0800,36.9128],[-76.0620,36.9188],[-76.0340,36.9275],[-76.0320,36.9175],[-76.0310,36.9000],[-76.0500,36.9012],[-76.0600,36.9076],[-76.0800,36.9070]],
+  [[-75.9300,36.6880],[-75.9130,36.6724],[-75.8939,36.6200],[-75.8863,36.6000],[-75.8674,36.5504],[-75.8800,36.5504],[-75.8900,36.5750],[-75.8980,36.6000],[-75.9060,36.6300],[-75.9130,36.6500],[-75.9170,36.6640],[-75.9230,36.6680]]
+];
+const MIL = [
+  [[-76.0480,36.8330],[-76.0120,36.8350],[-76.0030,36.8120],[-76.0120,36.7970],[-76.0450,36.8000],[-76.0550,36.8150]],
+  [[-76.0335,36.9290],[-76.0125,36.9316],[-76.0040,36.9280],[-75.9995,36.9190],[-76.0020,36.9125],[-76.0320,36.9175]],
+  [[-76.1765,36.9305],[-76.1400,36.9215],[-76.1320,36.9190],[-76.1360,36.9145],[-76.1750,36.9130]],
+  [[-75.9525,36.7800],[-75.9440,36.7545],[-75.9640,36.7510],[-75.9760,36.7730]],
+  [[-75.9660,36.8180],[-75.9625,36.8060],[-75.9820,36.8010],[-75.9880,36.8120],[-75.9745,36.8170]]
+];
+
+const TC = [[[-76.1360,36.8437],[-76.1305,36.8434]],[[-76.1360,36.8417],[-76.1305,36.8414]],[[-76.1360,36.8405],[-76.1305,36.8402]],[[-76.1352,36.8445],[-76.1352,36.8395]],[[-76.1339,36.8445],[-76.1339,36.8395]],[[-76.1324,36.8445],[-76.1324,36.8395]],[[-76.1309,36.8445],[-76.1309,36.8360]]];
+const ROADS = {
+  2: [
+    [[-76.2500,36.8640],[-76.2200,36.8600],[-76.1960,36.8540],[-76.1625,36.8440],[-76.1377,36.8340],[-76.1150,36.8360],[-76.0969,36.8382],[-76.0663,36.8363],[-76.0399,36.8432],[-76.0150,36.8470],[-75.9952,36.8465],[-75.9870,36.8478],[-75.9805,36.8497]],
+    [[-76.2050,36.8740],[-76.1700,36.8950],[-76.1400,36.9060],[-76.1200,36.9160],[-76.1180,36.9180]]
+  ],
+  1: [
+    [[-75.9985,36.9085],[-76.0020,36.9085],[-76.0130,36.9130],[-76.0280,36.9140],[-76.0440,36.9150],[-76.0600,36.9135],[-76.0703,36.9105],[-76.0800,36.9095],[-76.0919,36.9074],[-76.1029,36.9075],[-76.1130,36.9085],[-76.1210,36.9100],[-76.1330,36.9130],[-76.1450,36.9140],[-76.1750,36.9125],[-76.2100,36.9200]],
+    [[-75.9779,36.8460],[-75.9870,36.8460],[-76.0000,36.8440],[-76.0120,36.8420],[-76.0300,36.8410],[-76.0500,36.8420],[-76.0883,36.8401],[-76.1013,36.8410],[-76.1153,36.8411],[-76.1341,36.8445],[-76.1449,36.8449],[-76.1700,36.8500],[-76.1960,36.8490],[-76.2200,36.8520]],
+    [[-75.9812,36.8598],[-75.9850,36.8590],[-75.9950,36.8560],[-76.0100,36.8520],[-76.0250,36.8495]],
+    [[-75.9743,36.8348],[-75.9775,36.8275],[-75.9813,36.8229],[-75.9860,36.8160],[-75.9915,36.8080],[-75.9950,36.8000],[-75.9985,36.7920],[-75.9995,36.7860],[-76.0060,36.7770],[-76.0140,36.7660],[-76.0163,36.7600]],
+    [[-76.1377,36.8340],[-76.1340,36.8170],[-76.1310,36.8000],[-76.1290,36.7870],[-76.1250,36.7750],[-76.1160,36.7640]],
+    [[-76.1341,36.8445],[-76.1350,36.8600],[-76.1300,36.8800],[-76.1220,36.8980],[-76.1210,36.9100]],
+    [[-76.1650,36.8200],[-76.1450,36.8100],[-76.1270,36.7950],[-76.1100,36.7780],[-76.0850,36.7700],[-76.0700,36.7620],[-76.0590,36.7530],[-76.0350,36.7560],[-76.0163,36.7600],[-76.0102,36.7518],[-76.0177,36.7235]],
+    [[-76.2070,36.8090],[-76.1860,36.7990],[-76.1620,36.7800],[-76.1330,36.7620],[-76.1000,36.7450],[-76.0600,36.7340],[-76.0177,36.7235]],
+    [[-76.0145,36.7600],[-76.0000,36.7500],[-75.9850,36.7420],[-75.9700,36.7400],[-75.9600,36.7430],[-75.9500,36.7460],[-75.9441,36.7460]],
+    [[-76.0399,36.8432],[-76.0260,36.8500],[-76.0340,36.8650],[-76.0395,36.8776],[-76.0500,36.8880],[-76.0620,36.8980],[-76.0690,36.9100]],
+    [[-76.1330,36.8320],[-76.1197,36.8215],[-76.1000,36.8040],[-76.0870,36.7880],[-76.0800,36.7800]],
+    [[-76.0663,36.8363],[-76.0700,36.8130],[-76.0900,36.7900],[-76.1000,36.7700]]
+  ],
+  0: [
+    [[-75.9441,36.7460],[-75.9410,36.7300],[-75.9340,36.7050],[-75.9265,36.6939],[-75.9155,36.6724]],
+    [[-76.0800,36.7800],[-76.0520,36.7870],[-76.0140,36.7833],[-75.9991,36.7863],[-75.9800,36.7800]],
+    [[-75.9952,36.8465],[-75.9929,36.8107],[-75.9880,36.8120]],
+    [[-76.0177,36.7235],[-76.0252,36.6907],[-76.0324,36.6540],[-76.0263,36.6049],[-75.9910,36.5850],[-75.9600,36.5505]],
+    [[-76.0324,36.6540],[-76.0463,36.6154]],
+    [[-76.0177,36.7235],[-76.0002,36.6871],[-75.9900,36.6500],[-75.9910,36.6068]],
+    [[-76.0460,36.6154],[-76.0866,36.6060],[-76.1230,36.5900]],
+    [[-76.0263,36.6049],[-76.0360,36.5779]],
+    [[-76.0590,36.7530],[-76.0820,36.7420],[-76.0997,36.7185],[-76.1300,36.6900]],
+    [[-76.1600,36.8440],[-76.1590,36.8200],[-76.1450,36.8100]],
+    [[-76.0460,36.8420],[-76.0490,36.8100],[-76.0520,36.7870]],
+    [[-76.0969,36.8382],[-76.0950,36.8100],[-76.0870,36.7880]],
+    [[-76.1960,36.8540],[-76.1950,36.8250]],
+    [[-76.1745,36.8910],[-76.1650,36.8700],[-76.1625,36.8440]]
+  ]
+};
+
+/* ---------- parking data ---------- */
+const CITY_G = 'https://pw.virginiabeach.gov/parking/resort-area-parking/parking-garages';
+const CITY_L = 'https://pw.virginiabeach.gov/parking/resort-area-parking/parking-lots';
+const CITY_AP = 'https://pw.virginiabeach.gov/parking/resort-area-parking/atlantic-park-parking';
+const CITY_R = 'https://pw.virginiabeach.gov/city-property/parking/resort-area-parking';
+const CITY_M = 'https://pw.virginiabeach.gov/parking/resort-area-parking/parking-meters';
+const CITY_C = 'https://pw.virginiabeach.gov/parking/croatan-parking';
+const CITY_S = 'https://pw.virginiabeach.gov/city-property/parking/sandbridge-parking';
+const CITY_T = 'https://pw.virginiabeach.gov/city-property/parking/town-center-parking';
+const CITY_CC = 'https://pw.virginiabeach.gov/parking/convention-center-sports-center-parking';
+const CITY_P = 'https://pw.virginiabeach.gov/city-property/parking';
+const PLAN = 'https://virginiabeach.gov/connect/blog/new-resident-oceanfront-parking-plan';
+const VISIT = 'https://visitvirginiabeach.com/plan/parking-information';
+const PK = s => 'https://parks.virginiabeach.gov/outdoors/city-parks/' + s;
+
+const GR = ['Open 24/7. Overnight and monthly parking available.','Rates renew at 5 a.m. Flat rates can apply on busy weekends and event days.','Take a ticket or insert a card at the gate. Pay at the exit by card, or press Help for cash.'];
+const AR = ['Open 24/7. Customer service daily, 7 a.m. to 2 a.m.','Avoid Residential Red spaces. They need a permit and towing is enforced.','Weekly and monthly passes are for Atlantic Park businesses, employees and residents.'];
+const LR = ['Open 6 a.m. to 2:30 a.m. Towing starts at 2:30 a.m.','Unlimited reentry the same day. Rates renew at 5 a.m.','Free Nov. 1 to March 31.'];
+const TR = ['Free. Enforced Monday to Saturday, 9 a.m. to 10 p.m., and Sunday, 9 a.m. to 8 p.m.'];
+const SR = ['Paid season May 1 to Sept. 30. Free Oct. 1 to April 30.'];
+
+const D = [
+  /* Oceanfront garages */
+  {id:'g9',n:'9th Street Garage',t:'garage',a:'Oceanfront',addr:'200 9th St.',sp:532,b:[9,58],rate:'g9',r:GR,v:1,tel:'757-491-7206',src:CITY_G},
+  {id:'g25',n:'25th Street Garage',t:'garage',a:'Oceanfront',addr:'336 25th St.',sp:344,spn:'City parking page. The same page gives a garage total of more than 1,670, which only adds up if this garage has 532, the figure in older listings.',b:[25,172],rate:'g9',r:GR,v:1,tel:'757-385-7825',src:CITY_G},
+  {id:'g31',n:'31st Street Garage',t:'garage',a:'Oceanfront',addr:'209 30th St.',sp:610,b:[30.5,58],rate:'g9',r:[...GR,'Not part of the resident voucher plan.'],tel:'757-385-7831',src:CITY_G},
+  {id:'gb',n:'Baltic Garage',t:'garage',a:'Oceanfront',addr:'1915 Baltic Ave.',sp:876,b:[19.5,335],rate:'ap',r:['Enter on Baltic Avenue.',...AR],v:1,src:CITY_AP},
+  {id:'g20',n:'20th Street Garage',t:'garage',a:'Oceanfront',addr:'320 20th St.',sp:90,b:[20.2,172],rate:'ap',r:['Enter on 20th Street.',...AR],v:1,src:CITY_AP},
+  /* Oceanfront lots */
+  {id:'l2',n:'2nd Street Lot',t:'lot',a:'Oceanfront',addr:'145 Atlantic Ave.',sp:101,b:[1.8,-55],rate:'lot',r:LR,v:1,s:1,src:CITY_L},
+  {id:'lr',n:'Rudee Loop Lot',t:'lot',a:'Oceanfront',addr:'104 Atlantic Ave.',sp:152,b:[.75,10],rate:'lot',r:LR,v:1,s:1,src:CITY_L},
+  {id:'l4',n:'4th Street Lot',t:'lot',a:'Oceanfront',addr:'306 4th St.',sp:65,b:[4,172],rate:'lot',r:[...LR,'10 oversized spaces: $15 per day, $25 overnight, all year. Pay at the lot.','The only Resort Area lot with overnight parking. No sleeping in vehicles.'],v:1,s:1,sr:1,src:CITY_L},
+  {id:'l21',n:'21st Street Lot',t:'lot',a:'Oceanfront',addr:'300 21st St.',sp:40,b:[21,172],rate:'lot21',r:['Open 6 a.m. to 2:30 a.m. Towing starts at 2:30 a.m.','Keeps charging in the off-season, unlike the other surface lots.','Not covered by the seasonal lot permit.'],v:1,src:CITY_R},
+  /* Oceanfront streets */
+  {id:'sf',n:'Atlantic Ave. free 2-hour lane',t:'street',a:'Oceanfront',addr:'Atlantic Ave., 5th to 38th streets',b:[10.5,8],rate:'atl',sp:null,r:['Free for two hours, Nov. 1 to March 31, 11 a.m. to 11 p.m.','Outside southbound lane only. Spaces are marked by signs, not paint.','Not between 19th and 22nd streets, or between 29th and 32nd streets.'],src:CITY_R},
+  {id:'sm',n:'Atlantic Ave. and side-street meters',t:'street',a:'Oceanfront',addr:'Atlantic Ave., Rudee Loop to 38th St., and side streets to Pacific Ave.',b:[35.5,58],rate:'met',sp:700,est:1,spn:'From a 2016 count. It found about 9,500 Oceanfront spaces overall, including 4,400 on residential streets. The city page lists no current meter count.',ss:['WYDaily, 2016','https://wydaily.com/latest/local/2016/05/18/virginia-beach-considers-new-old-approaches-to-improve-parking-at-oceanfront/'],r:['Enforced 24 hours a day, April 1 to Oct. 31. Free most places Nov. 1 to March 31.','No three-hour limit since 2026. No on-street parking after midnight.','Towing starts at midnight on 1st to 4th streets, and at 2:30 a.m. on 14th to 29th streets.','Disabled tags and plates: free for up to four hours at meters. This does not apply in garages or lots.','Fine for non-payment is $20, doubling to $40 after 14 days.'],v:1,src:CITY_M,src2:PLAN},
+  {id:'sy',n:'Year-round meters',t:'street',a:'Oceanfront',addr:'300 blocks of 18th, 24½ and 25th streets, 400 block of 19th St.',b:[23.5,172],rate:'metY',sp:null,r:['These blocks keep charging in the off-season.','Check the printed receipt for your expiry time.','The voucher covers metered spaces around Atlantic Park, which may include the 18th and 19th street blocks. Check the HONK app.'],src:CITY_R,src2:PLAN},
+  {id:'sa',n:'Free morning meters',t:'street',a:'Oceanfront',addr:'Atlantic Ave., 5th St. to Rudee Loop',b:[3.2,58],rate:'morn',sp:null,r:['Free 5 to 10 a.m. at these meters, even in paid season.','Towing starts at midnight on 1st to 4th streets.'],v:1,src:CITY_M},
+  /* Convention and sports */
+  {id:'cc',n:'Convention Center lots',t:'lot',a:'Oceanfront',addr:'1000 19th St.',sp:1350,est:1,spn:'From a venue listing. Visit Virginia Beach says over 1,300. WAVY reported 2,372 across the Convention Center and Sports Center together.',ss:['Venue listing','https://www.successfulmeetings.com/Meeting-Event-Venues/Virginia-Beach-VA/Convention-Center/The-Virginia-Beach-Convention-Center-p53221052'],p:[36.8468,-75.9872],rate:'cc',r:['Paid parking here is postponed until April 1, 2027.','The planned rate is $1, $3, $6, then $10 daily maximum.','Large events can fill the lots. Buses are not allowed.'],src:CITY_CC,ap:1},
+  {id:'sc',n:'Sports Center lots',t:'lot',a:'Oceanfront',addr:'Virginia Beach Sports Center, 19th St.',sp:1020,est:1,spn:'Derived estimate: the 2,372 spaces WAVY reported for both sites, minus 1,350 at the Convention Center. No separate count is published.',ss:['WAVY, Feb. 2026','https://www.wavy.com/news/local-news/virginia-beach/no-joke-new-parking-fees-start-april-1-for-vb-convention-sports-centers/amp/'],p:[36.8443,-75.9880],rate:'cc',r:['Directly across the street from the Convention Center.','Paid parking here is postponed until April 1, 2027.','The planned rate is $1, $3, $6, then $10 daily maximum.'],src:CITY_CC,ap:1},
+  /* Private Oceanfront */
+  {id:'p8',n:'8th & Atlantic Lot',t:'private',a:'Oceanfront',addr:'800 Atlantic Ave.',sp:20,b:[8,22],rate:'post',r:['Listed at $5 for the first hour, then $3 per hour.'],src:'https://en.parkopedia.com/parking/lot/8th_and_atlantic_lot/23451/virginia_beach/',via:'Parkopedia'},
+  {id:'p12',n:'Lot at 271 12th St.',t:'private',a:'Oceanfront',addr:'271 12th St.',sp:null,b:[12,95],rate:'post',r:['Pay through PMC Pay as posted at the lot.'],src:'https://parkingmgt.com/?p=28934',via:'Operator page'},
+  {id:'p13',n:'Waves Parking',t:'private',a:'Oceanfront',addr:'1312 Atlantic Ave.',sp:65,b:[13,22],rate:'post',r:['Pay and display, or card. Closes at 2 a.m. No overnight parking.'],src:'https://en.parkopedia.com/parking/lot/waves_parking/23451/virginia_beach/',via:'Parkopedia'},
+  {id:'p14',n:'Pier Shops Beach Parking',t:'private',a:'Oceanfront',addr:'222 14th St.',sp:140,b:[14,60],rate:'post',r:['Listed at $5 flat, 8 a.m. to 2 a.m. Also listed as the Fishing Pier lot, 1415 Atlantic Ave.'],src:'https://en.parkopedia.com/parking/lot/pier_shops_beach_parking/23451/virginia_beach/',via:'Parkopedia'},
+  {id:'p16',n:'Premium Parking Lot P4501',t:'private',a:'Oceanfront',addr:'1610 Atlantic Ave.',sp:24,b:[16,22],rate:'post',r:['Rates are posted at the lot.'],src:'https://en.parkopedia.com/parking/lot/premium_parking_lot_p4501/23451/virginia_beach',via:'Parkopedia'},
+  {id:'p17',n:'Prime Parking',t:'private',a:'Oceanfront',addr:'208 17th St.',sp:null,b:[17,60],rate:'post',r:['Pay through PMC Pay as posted at the lot.'],src:'https://parkingmgt.com/?p=29644',via:'Operator page'},
+  {id:'p32',n:'Beach Parking',t:'private',a:'Oceanfront',addr:'3233 Pacific Ave.',sp:61,b:[32.5,128],rate:'post',r:['Listed as valid until 2 a.m.'],src:'https://en.parkopedia.com/parking/lot/beach_parking/23451/virginia_beach/',via:'Parkopedia'},
+  /* Rudee, Croatan, General Booth */
+  {id:'cr',n:'Croatan Lot',t:'lot',a:'Rudee Inlet and Croatan',addr:'920 Vanderbilt Ave.',sp:505,p:[36.8188,-75.9682],rate:'cro',r:['Paid season April 1 to Sept. 30: free 6 to 10 a.m., then $5 daily from 10 a.m. to 8 p.m.','Oct. 1 to March 31: free, 6 a.m. to 5 p.m.','Towing is enforced after closing time. Oversized vehicles allowed.'],s:1,src:CITY_C,ap:1},
+  {id:'cs',n:'Croatan neighborhood streets',t:'street',a:'Rudee Inlet and Croatan',addr:'Croatan Beach neighborhood',p:[36.8238,-75.9702],rate:'unk',sp:null,r:['On-street rules here are set by signs and residential permits.','Traffic Engineering handles these streets: 757-385-4131.'],src:CITY_P,ap:1},
+  {id:'owl',n:'Owl Creek Boat Ramp',t:'ramp',a:'Rudee Inlet and Croatan',addr:'701 General Booth Blvd.',sp:66,est:1,spu:'trailer spaces',spn:'From SaltChef, a fishing guide. Car spaces are not listed.',ss:['SaltChef','https://www.saltchef.com/catch_fish/VA/Virginia_Beach/boat_ramps.html'],p:[36.82286,-75.98128],rate:'free',r:['Four concrete ramps with access to Rudee Inlet and the Atlantic.','No launch fee.'],src:'https://parks.virginiabeach.gov/outdoors/beach-boat-facilities'},
+  {id:'red',n:'Red Wing Park',t:'park',a:'Rudee Inlet and Croatan',addr:'1398 General Booth Blvd.',sp:null,p:[36.790427,-75.991319],rate:'park',r:['No parking fee listed by the city.'],src:PK('red-wing-park')},
+  {id:'mv',n:'Marshview Park',t:'park',a:'Rudee Inlet and Croatan',addr:'141 Marshview Dr.',sp:null,p:[36.8262,-75.9925],rate:'park',r:['Three lots on site. No parking fee listed by the city.'],src:PK('marshview-park-natural-areas'),ap:1},
+  /* Sandbridge */
+  {id:'sb1',n:'Sandbridge Market Lot',t:'lot',a:'Sandbridge and Back Bay',addr:'100 Sandbridge Rd.',sp:76,p:[36.745984,-75.944094],rate:'snd',r:[...SR,'Enforced 8 a.m. to 5 p.m. No in-and-out during operating hours.','No overnight parking.'],s:1,src:CITY_S},
+  {id:'sb2',n:'Sandbridge Municipal Lot',t:'lot',a:'Sandbridge and Back Bay',addr:'2524 Sandpiper Rd.',sp:136,p:[36.7440,-75.9426],rate:'snd',r:[...SR,'Enforced 8 a.m. to 5 p.m. Gates close to new entry at 9 p.m.','Unlimited reentry during operating hours. Overnight parking $10.'],s:1,sr:1,src:CITY_S,ap:1},
+  {id:'li',n:'Little Island Lot',t:'lot',a:'Sandbridge and Back Bay',addr:'3820 Sandpiper Rd.',sp:725,p:[36.69394,-75.924264],rate:'snd',r:[...SR,'Enforced 8 a.m. to 5 p.m. Gates close to new entry at 9 p.m.','Very busy on summer weekends, with long waits possible after 11 a.m.','Overnight parking $10. Oversized vehicles allowed.'],s:1,sr:1,src:CITY_S},
+  {id:'sbs',n:'Sandbridge on-street spaces',t:'street',a:'Sandbridge and Back Bay',addr:'Sandfiddler Rd. near beach access ramps',p:[36.7240,-75.9375],rate:'unk',sp:null,r:['Spaces sit next to beach access ramps.','Residential zones need a permit or guest pass at night. Check the signs.','Traffic Engineering handles these streets: 757-385-4131.'],src:VISIT,ap:1},
+  {id:'bb',n:'Back Bay National Wildlife Refuge',t:'park',a:'Sandbridge and Back Bay',addr:'4005 Sandpiper Rd.',sp:null,spt:'Limited',spn:'The refuge says parking is limited but gives no number.',ss:['Refuge guide','https://www.fws.gov/sites/default/files/documents/2026-05/brochure_visitorsguide.pdf'],p:[36.672374,-75.915481],rate:'bb',r:['$5 per vehicle, April 1 to Oct. 31. No fee Nov. 1 to March 31.','On foot or bike, entry is free. The annual pass is $20.','No trailers or overnight parking.','False Cape State Park charges no parking fee, but you reach it through the refuge on foot, by bike or by boat. Its overnight campers may leave cars at Little Island.'],src:'https://www.recreation.gov/sitepass/1284',via:'Recreation.gov'},
+  /* Town Center */
+  {id:'t1',n:'Westin Hotel Garage (Red)',t:'garage',a:'Town Center',addr:'4535 Commerce Dr.',sp:947,p:[36.8411,-76.1346],rate:'free',r:[...TR,'Enter on Market Street.','Levels 1 and 2 are privately owned and vehicles there can be towed.'],src:CITY_T,ap:1},
+  {id:'t2',n:'Armada Hoffler Tower Garage (Green)',t:'garage',a:'Town Center',addr:'225 Town Center Dr.',sp:1284,p:[36.8422,-76.1331],rate:'free',r:[...TR,'Enter on Town Center Drive (east) or Central Park Avenue (west).','Two-hour limit on levels 2 to 4, and booting is enforced.'],src:CITY_T,ap:1},
+  {id:'t3',n:'Cosmopolitan Garage (Blue)',t:'garage',a:'Town Center',addr:'4544 Columbus St.',sp:851,p:[36.8430,-76.1331],rate:'free',r:[...TR,'Enter on Town Center Drive.','Two-hour limit on level 1, and booting is enforced.'],src:CITY_T,ap:1},
+  {id:'t4',n:'Apex Entertainment Garage (Maroon)',t:'garage',a:'Town Center',addr:'4621 Columbus St.',sp:574,p:[36.8429,-76.1346],rate:'free',r:[...TR,'Enter on Market Street.','Two-hour limit on level 1, and booting is enforced.'],src:CITY_T,ap:1},
+  {id:'t5',n:'Clark Nexsen Tower Garage (Orange)',t:'garage',a:'Town Center',addr:'4525 Main St.',sp:725,p:[36.8423,-76.1316],rate:'free',r:[...TR,'Enter on Constitution Drive (east) or Town Center Drive (west).','Two-hour limit on level 1, and booting is enforced.'],src:CITY_T,ap:1},
+  {id:'t6',n:'Town Center on-street spaces',t:'street',a:'Town Center',addr:'Streets around Town Center',sp:86,p:[36.8411,-76.1331],rate:'free',r:['Free. Many spaces have two-hour limits.'],src:CITY_T,ap:1},
+  /* Shore Drive */
+  {id:'ly',n:'Lynnhaven Boat Ramp and Beach',t:'ramp',a:'Shore Drive and Lynnhaven',addr:'3576 Piedmont Cir.',sp:190,spn:'88 trailer spaces and 102 car spaces, from Virginia Marine Resources.',ss:['VMRC','https://mrc.virginia.gov/vsrfdf/lynn.shtm'],p:[36.9050,-76.0950],rate:'lyn',r:['88 trailer spaces and 102 car spaces. Open 24 hours.','Car parking is $4. Meters are enforced April 1 to Oct. 31.','Boat launch is $15 a day or $200 a year, and includes parking for one truck and trailer.','Text BOATRAMP to 67283 for lot-full alerts.'],src:'https://parks.virginiabeach.gov/outdoors/beach-boat-facilities/lynnhaven-boat-ramp-beach-facility',ap:1},
+  {id:'fl',n:'First Landing State Park',t:'park',a:'Shore Drive and Lynnhaven',addr:'2500 Shore Dr.',sp:300,est:1,spn:'From an older Visit Virginia Beach listing. The boat ramp adds about 75 trailer spaces, per SaltChef. The state does not publish a total.',ss:['Visit Virginia Beach',VISIT],p:[36.9150,-76.0430],rate:'fl',r:['$7 standard. $10 on weekends, April to October, and on holiday weekends.','A boat launch adds $5 per trailer.','On busy days the park turns guests away once it is full.'],src:'https://www.dcr.virginia.gov/state-parks/parking-fees',via:'Virginia DCR',ap:1},
+  {id:'ph',n:'Pleasure House Point Natural Area',t:'park',a:'Shore Drive and Lynnhaven',addr:'3663 Marlin Bay Dr.',sp:null,p:[36.9000,-76.0985],rate:'park',r:['Park at the main entrance to the Brock Center. No parking fee listed by the city.'],src:PK('pleasure-house-point-natural-area'),ap:1},
+  {id:'by',n:'Bayville Farms Park',t:'park',a:'Shore Drive and Lynnhaven',addr:'4132 First Court Rd.',sp:null,p:[36.899444,-76.1225],rate:'park',r:['No parking fee listed by the city.'],src:PK('bayville-farms-park')},
+  {id:'gn',n:'Great Neck Park',t:'park',a:'Shore Drive and Lynnhaven',addr:'2513 Shorehaven Dr.',sp:null,p:[36.8895,-76.0520],rate:'park',r:['No parking fee listed by the city.'],src:PK('great-neck-park'),ap:1},
+  {id:'ll',n:'Lake Lawson and Lake Smith Natural Area',t:'ramp',a:'Shore Drive and Lynnhaven',addr:'5381 Shell Rd.',sp:null,p:[36.8905,-76.1745],rate:'free',r:['No fee to launch, but a City of Norfolk boat permit is required.','Kayak rentals are available at a self-service kiosk.'],src:PK('lake-lawson-lake-smith-natural-area'),ap:1},
+  {id:'ch',n:"Chic's Beach and Ocean Park streets",t:'street',a:'Shore Drive and Lynnhaven',addr:'Streets between Shore Dr. and the bay',p:[36.9118,-76.1120],rate:'unk',sp:null,r:['Public spaces sit between Shore Drive and the beach, from Fort Story to Little Creek.','Rules vary by block, so read the signs.','Traffic Engineering handles these streets: 757-385-4131.'],src:VISIT,ap:1},
+  /* Inland */
+  {id:'mt',n:'Mount Trashmore Park',t:'park',a:'Central and Kempsville',addr:'310 Edwin Dr.',sp:null,p:[36.827648,-76.12549],rate:'park',r:['No admission or parking fee listed.','The city says a Windsor Woods stormwater project will permanently close the lot on South Boulevard.'],src:PK('mount-trashmore-park')},
+  {id:'wd',n:'Woodstock Park',t:'park',a:'Central and Kempsville',addr:'5709 Providence Rd.',sp:null,p:[36.8135,-76.1800],rate:'park',r:['No parking fee listed by the city.'],src:PK('woodstock-park'),ap:1},
+  {id:'cv',n:'City View Park',t:'park',a:'Central and Kempsville',addr:'2073 Kempsville Rd.',sp:null,p:[36.777222,-76.198889],rate:'park',r:['No parking fee listed by the city.'],src:PK('city-view-park')},
+  {id:'kl',n:'Kempes Landing Park',t:'park',a:'Central and Kempsville',addr:'524 Kempsville Greens Ct.',sp:null,p:[36.8240,-76.1460],rate:'park',r:['No parking fee listed by the city.'],src:PK('kempes-landing-park'),ap:1},
+  {id:'sl',n:'Stumpy Lake Natural Area',t:'park',a:'Central and Kempsville',addr:'4797 Indian River Rd.',sp:14,p:[36.771781,-76.162939],rate:'park',r:['Room for 12 cars and two trailers. No parking fee listed by the city.'],src:PK('stumpy-lake-natural-area')},
+  {id:'wn',n:'West Neck Creek Natural Area',t:'park',a:'Central and Kempsville',addr:'2249 N. Landing Rd.',sp:null,p:[36.7425,-76.0800],rate:'park',r:['No parking fee listed by the city.'],src:PK('west-neck-creek-natural-area'),ap:1},
+  {id:'ir',n:'Indian River Road Park & Ride',t:'transit',a:'Central and Kempsville',addr:'970 Reon Dr.',sp:276,spn:'From Parkopedia. A 1997 Virginian-Pilot report put this lot at 250.',p:[36.8080,-76.1880],rate:'free',r:['VDOT Lot 189. Listed as free.','Check posted time limits before leaving a car.'],src:'https://en.parkopedia.com/parking/lot/indian_river_road_park_and_ride_lot_189/23464/virginia_beach',via:'Parkopedia',ap:1},
+  {id:'sv',n:'Silverleaf Park & Ride',t:'transit',a:'Central and Kempsville',addr:'4300 Commuter Dr.',sp:300,est:1,spn:'The planned size in a 1997 Virginian-Pilot report, which also mentioned a possible 150 more. No current count is published.',ss:['Virginian-Pilot, 1997','https://scholar.lib.vt.edu/VA-news/VA-Pilot/issues/1997/vp970215/02150237.htm'],p:[36.7950,-76.1312],rate:'free',r:['Near Silverleaf Drive and South Independence Boulevard.','Confirm parking with HRT: 757-222-6100.'],src:'https://gohrt.com/alert/silverleaf-reopens',via:'HRT',ap:1},
+  /* South */
+  {id:'pf',n:'Pungo Ferry Landing Park',t:'ramp',a:'Pungo and the south',addr:'2272 Old Pungo Ferry Rd.',sp:null,spt:'Limited',spn:'The city calls parking limited, with less room during construction that began in April 2026.',ss:['City page',PK('pungo-ferry-landing-park')],p:[36.6165,-76.0458],rate:'free',r:['Boat ramp on the North Landing River with vehicle and trailer spaces.','No launch fee.'],src:'https://www.visitvirginiabeach.com/listing/pungo-ferry-landing-park/1047',via:'Visit Virginia Beach',ap:1},
+  {id:'mp',n:'Munden Point Park',t:'ramp',a:'Pungo and the south',addr:'2001 Pefley Ln.',sp:12,est:1,spu:'trailer spaces',spn:'From SaltChef, a fishing guide. Car spaces are not listed.',ss:['SaltChef','https://www.saltchef.com/catch_fish/VA/Virginia_Beach/boat_ramps.html'],p:[36.577931,-76.03604],rate:'free',r:['Boat, kayak and canoe launch on the North Landing River.','No launch fee.'],src:PK('munden-point-park')}
+];
+const AREAS = ['Oceanfront','Rudee Inlet and Croatan','Sandbridge and Back Bay','Town Center','Shore Drive and Lynnhaven','Central and Kempsville','Pungo and the south'];
+const TYPES = {garage:'Garages',lot:'Lots',street:'Street',ramp:'Boat ramps',park:'Parks',transit:'Park & ride',private:'Private'};
+const KIND = {garage:'City garage',lot:'Public lot',street:'On-street',ramp:'Boat ramp',park:'Park',transit:'Park & ride',private:'Private lot, partial list'};
+D.forEach(x => { const c = x.b ? blk(x.b[0], x.b[1]) : [x.p[1], x.p[0]]; x.lon = c[0]; x.lat = c[1]; });
+
+/* ---------- food and retail by area: outlet counts from VDH inspection records, grouped by street address ---------- */
+const NODES = [
+  {id:'ocean',n:'Oceanfront',c:blk(20,60),r:2600,f:156,shops:[['31Ocean',25]]},
+  {id:'vibe',n:'ViBe and Convention Center',c:[-75.9835,36.8485],r:900,f:54,shops:[]},
+  {id:'laskin',n:'Laskin Road, east end',c:[-75.9900,36.8575],r:900,f:24,shops:[]},
+  {id:'rudee',n:'Rudee Inlet and Birdneck',c:[-75.9810,36.8300],r:1000,f:25,shops:[]},
+  {id:'hilltop',n:'Hilltop',c:[-76.0195,36.8500],r:1000,f:95,shops:[['La Promenade',35],['Marketplace at Hilltop',33],['Hilltop Plaza',25],['Regency Hilltop',21],['Hilltop East',17]]},
+  {id:'greatneck',n:'North Great Neck Road',c:[-76.0330,36.8640],r:1000,f:34,shops:[]},
+  {id:'shoreE',n:'Shore Drive near Lesner Bridge',c:[-76.0790,36.9095],r:1300,f:40,shops:[['Cape Henry Plaza',3]]},
+  {id:'shoreW',n:"Chic's Beach and Pleasure House",c:[-76.1100,36.9050],r:1500,f:44,shops:[["Chic's Beach Shopping Center",11]]},
+  {id:'mall',n:'Lynnhaven Mall',c:[-76.0710,36.8180],r:1000,f:88,shops:[['Lynnhaven Mall',126],['Lynnhaven North',26],['Lynnhaven Crossing',2]]},
+  {id:'vbmid',n:'Virginia Beach Blvd., Rosemont area',c:[-76.0890,36.8405],r:1500,f:66,shops:[['Birchwood',18]]},
+  {id:'tc',n:'Town Center and Pembroke',sn:'Town Center',c:[-76.1335,36.8425],r:1000,f:92,shops:[['Town Center',95],['Pembroke Square',33]]},
+  {id:'bayside',n:'Bayside and Northampton',c:[-76.1400,36.8840],r:1500,f:57,shops:[['Pembroke Meadows',15]]},
+  {id:'newtown',n:'Newtown and Witchduck',c:[-76.1730,36.8450],r:1500,f:42,shops:[]},
+  {id:'kemps',n:'Kempsville and Indian River',c:[-76.1560,36.8100],r:2000,f:169,shops:[]},
+  {id:'holland',n:'Holland Road',c:[-76.1090,36.8110],r:1500,f:93,shops:[]},
+  {id:'landstown',n:'Landstown and Princess Anne',c:[-76.0920,36.7760],r:2000,f:135,shops:[['Landstown Commons',21]]},
+  {id:'redmill',n:'Red Mill and General Booth',c:[-76.0030,36.7790],r:1800,f:98,shops:[['Red Mill Commons, including restaurants',80],['Red Mill Walk',18]]},
+  {id:'south',n:'Sandbridge and Pungo',c:[-75.9800,36.7330],r:4500,f:16,shops:[]}
+];
+const stores = o => o.shops.reduce((s, a) => s + a[1], 0);
+const F_TOTAL = NODES.reduce((s, o) => s + o.f, 0);
+const near = o => D.filter(x => x.t === 'garage' || x.t === 'lot')
+  .map(x => ({x, d:Math.hypot((x.lon - o.c[0]) * MX, (x.lat - o.c[1]) * MY)}))
+  .filter(i => i.d <= o.r).sort((a, b) => a.d - b.d);
+
+/* ---------- space counts ---------- */
+const spShort = x => x.sp ? (x.est ? '~' : '') + x.sp.toLocaleString('en-US') : '';
+const spRow = x => x.sp ? spShort(x) + ' ' + (x.spu || 'spaces') : x.spt || 'No count';
+const spSum = list => list.reduce((s, x) => s + (x.sp || 0), 0);
+
+/* ---------- price rules ---------- */
+const G9 = [1,3,6,9,12,15,18,21,24,24];
+const AP = [1,3,6,10,14,19,24,24,24,24];
+const MT = [1,3,6,12,18,25,32,40,48,56];
+const CCP = [1,3,6,10,10,10,10,10,10,10];
+const md = d => d.slice(5);
+const within = (d, a, b) => { const m = md(d); return a <= b ? (m >= a && m <= b) : (m >= a || m <= b); };
+const weekend = d => { const w = new Date(d + 'T12:00:00').getDay(); return w === 0 || w === 6; };
+const FREE = (note = 'Free on this date') => ({st:'free', c:0, tag:'Free', long:note});
+const hrs = h => h >= 10 ? 'all day' : h === 1 ? '1 hour' : h + ' hours';
+const hourly = (tb, h) => ({st:'paid', c:tb[h-1], tag:'$' + tb[h-1], long:'$' + tb[h-1] + ' for ' + hrs(h), tb});
+const flat = (c, what) => ({st:'paid', c, tag:'$' + c, long:'$' + c + ' ' + what});
+function price(x, d, h) {
+  switch (x.rate) {
+    case 'g9': return hourly(G9, h);
+    case 'ap': return hourly(AP, h);
+    case 'lot': return within(d,'04-01','10-31') ? hourly(G9, h) : FREE('Free in the off-season');
+    case 'lot21': return hourly(G9, h);
+    case 'met': return within(d,'04-01','10-31') ? hourly(MT, h) : FREE('Free in the off-season');
+    case 'metY': return hourly(MT, h);
+    case 'atl': return within(d,'11-01','03-31')
+      ? FREE('Free for up to 2 hours')
+      : {st:'paid', c:MT[h-1], tag:'$' + MT[h-1], long:'Free lane is off. Meters: $' + MT[h-1] + ' for ' + hrs(h), tb:MT, off:1};
+    case 'morn': return within(d,'04-01','10-31')
+      ? {st:'paid', c:MT[h-1], tag:'$' + MT[h-1], long:'Free 5 to 10 a.m., otherwise $' + MT[h-1] + ' for ' + hrs(h), tb:MT}
+      : FREE('Free in the off-season');
+    case 'cro': return within(d,'04-01','09-30') ? flat(5,'daily after 10 a.m.') : FREE('Free in the off-season');
+    case 'snd': return within(d,'05-01','09-30') ? flat(4,'daily') : FREE('Free in the off-season');
+    case 'cc': return d < '2027-04-01' ? FREE('Free until April 1, 2027') : hourly(CCP, h);
+    case 'lyn': return within(d,'04-01','10-31') ? flat(4,'per car') : FREE('Car parking free in the off-season');
+    case 'fl': return (weekend(d) && within(d,'04-01','10-31')) ? flat(10,'weekend rate') : flat(7,'per vehicle');
+    case 'bb': return within(d,'04-01','10-31') ? flat(5,'per vehicle') : FREE('No fee in the off-season');
+    case 'free': return FREE('Free');
+    case 'park': return FREE('Free');
+    case 'unk': return {st:'posted', c:null, tag:'Signs', long:'Check street signs'};
+    case 'post': return {st:'posted', c:null, tag:'Posted', long:'Rate posted at the lot'};
+  }
+}
+
+/* ---------- state ---------- */
+const NY = () => new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const S = {date:NY(), stay:3, types:new Set(Object.keys(TYPES)), freeOnly:false, q:'', sel:null, sort:'cost', base:'chart', mode:'food', pass:'', node:null, asort:'f', layF:true, layR:true};
+const map = $('#map'), world = $('#world'), lbl = $('#lbl'), pinsEl = $('#pins');
+const V = {k:.02, tx:0, ty:0};
+const KMIN = .0105, KMAX = 1.6;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- build base map ---------- */
+function buildWorld() {
+  const h = [];
+  h.push(`<defs><clipPath id="seaclip"><path d="${shape(SEA)}"/></clipPath></defs>`);
+  h.push(`<path class="city" d="${shape(CITY, true, 1)}"/>`);
+  PARKS.forEach(p => h.push(`<path class="parkland" d="${shape(p)}"/>`));
+  MIL.forEach(p => h.push(`<path class="mil" d="${shape(p)}"/>`));
+  MARSH.forEach(p => h.push(`<path class="marsh" d="${shape(p)}"/>`));
+  WPOLY.forEach(p => h.push(`<path class="wfill" d="${shape(p)}"/>`));
+  WLINE.forEach(([w, p]) => h.push(`<path class="wline" stroke-width="${w}" d="${shape(p, false)}"/>`));
+  ISLES.forEach(p => h.push(`<path class="marsh" d="${shape(p, true, 1)}"/>`));
+  h.push(`<path class="deep" d="${shape(SEA)}"/>`);
+  h.push(`<g clip-path="url(#seaclip)"><path class="band1" d="${shape(SEA)}"/><path class="band2" d="${shape(SEA)}"/></g>`);
+  h.push(`<path class="coast" d="${shape(SEA)}"/>`);
+  h.push(`<path class="limit" d="${shape(LIMITS, false, 1)}"/>`);
+  ROADS[0].forEach(p => h.push(`<path class="r r0" d="${shape(p, false, 1)}"/>`));
+  ROADS[1].forEach(p => h.push(`<path class="r r1" d="${shape(p, false, 1)}"/>`));
+  ROADS[2].forEach(p => h.push(`<path class="r r2" d="${shape(p, false, 1)}"/>`));
+  h.push(`<path class="r r1" d="${dOf(along(38,89,6,3), false)}"/>`);
+  h.push(`<path class="r bridge" d="${dOf([[-76.1180,36.9180],[-76.1160,36.9450],[-76.1133,36.9667],[-76.1100,37.0200]], false)}"/>`);
+  h.push(`<g id="grid">`);
+  for (let n = 1; n <= 42; n++) {
+    const west = n < 17 ? 215 : n <= 33 ? 455 : 215;
+    h.push(`<path class="r grid-st" d="${dOf(across(n, -110, west), false)}"/>`);
+  }
+  h.push(`<path class="r bw" d="${dOf(along(1,40.5,-125,1), false)}"/>`);
+  [[.6,40,0],[1,42,115],[5,30,215],[17,33,335],[17,31,455]].forEach(([a, b, d]) => h.push(`<path class="r grid-av" d="${dOf(along(a, b, d, 1), false)}"/>`));
+  h.push(`</g><g id="tc">`);
+  TC.forEach(p => h.push(`<path class="r grid-st" d="${dOf(p, false)}"/>`));
+  h.push(`</g>`);
+  /* curb features */
+  h.push(`<path class="zone" id="z-sm" d="${dOf([...along(1,38,0,1), ...along(1,38,115,1).reverse()], true)}"/>`);
+  h.push(`<g id="curbs">`);
+  [[5,19],[22,29],[32,38]].forEach(([a, b]) => h.push(`<path class="st" data-id="sf" d="${dOf(along(a, b, 8, 1), false)}"/>`));
+  h.push(`<path class="st" data-id="sa" d="${dOf(along(1,5,-6,1), false)}"/>`);
+  [[18,115,215],[24.5,115,215],[25,115,215],[19,215,335]].forEach(([n, a, b]) => h.push(`<path class="st" data-id="sy" d="${dOf(across(n, a, b), false)}"/>`));
+  h.push(`</g>`);
+  world.innerHTML = h.join('');
+}
+
+/* ---------- labels ---------- */
+const L = [
+  {t:'Atlantic Ocean',p:[-75.82,36.76],c:'sea',a:0,z:.21},
+  {t:'Atlantic Ocean',p:[-75.955,36.86],c:'sea',a:.16,z:9},
+  {t:'Chesapeake Bay',p:[-76.08,36.945],c:'sea',a:.03,z:9},
+  {t:'NORFOLK',p:[-76.235,36.885],c:'other',a:0,z:.09},
+  {t:'CHESAPEAKE',p:[-76.215,36.70],c:'other',a:0,z:.09},
+  {t:'NORTH CAROLINA',p:[-76.03,36.5365],c:'other',a:0,z:.09},
+  {t:'Oceanfront',p:[-76.0085,36.8685],c:'place',a:.0,z:.1},
+  {t:'Town Center',p:[-76.1335,36.8515],c:'place',a:.0,z:.2},
+  {t:'Hilltop',p:[-76.0185,36.8555],c:'place',a:.05,z:.5},
+  {t:'Lynnhaven',p:[-76.0750,36.8290],c:'place',a:.05,z:.5},
+  {t:'Kempsville',p:[-76.1570,36.8040],c:'place',a:.05,z:.5},
+  {t:'Bayside',p:[-76.1520,36.8690],c:'place',a:.05,z:.5},
+  {t:'Great Neck',p:[-76.0450,36.8800],c:'place',a:.1,z:.5},
+  {t:'Green Run',p:[-76.0950,36.7950],c:'place',a:.1,z:.5},
+  {t:'Courthouse',p:[-76.0580,36.7650],c:'place',a:.05,z:.5},
+  {t:'Sandbridge',p:[-75.9700,36.7530],c:'place',a:.02,z:.3},
+  {t:'Pungo',p:[-76.0060,36.7320],c:'place',a:.02,z:.5},
+  {t:'Creeds',p:[-76.0130,36.6095],c:'place',a:.02,z:.5},
+  {t:'Blackwater',p:[-76.0866,36.6130],c:'place',a:.02,z:.5},
+  {t:'Shore Drive',p:[-76.0650,36.9030],c:'place',a:.14,z:.5},
+  {t:'Back Bay',p:[-75.9560,36.6160],c:'wat',a:.02,z:.4},
+  {t:'North Bay',p:[-75.9560,36.7105],c:'wat',a:.1,z:.5},
+  {t:'Lynnhaven Bay',p:[-76.0760,36.8912],c:'wat',a:.09,z:.5},
+  {t:'Broad Bay',p:[-76.0370,36.9000],c:'wat',a:.11,z:.5},
+  {t:'Linkhorn Bay',p:[-76.0065,36.8815],c:'wat',a:.14,z:.5},
+  {t:'Stumpy Lake',p:[-76.1760,36.7790],c:'wat',a:.1,z:.6},
+  {t:'North Landing River',p:[-76.0820,36.6480],c:'wat',a:.12,z:.5},
+  {t:'Rudee Inlet',p:[-75.9610,36.8296],c:'wat',a:.16,z:.9},
+  {t:'Lake Holly',p:[-75.9765,36.8380],c:'wat',a:.45,z:1},
+  {t:'NAS Oceana',p:[-76.0270,36.8160],c:'mil',a:.08,z:.5},
+  {t:'Fort Story',p:[-76.0170,36.9220],c:'mil',a:.12,z:.5},
+  {t:'Little Creek',p:[-76.1540,36.9180],c:'mil',a:.12,z:.5},
+  {t:'Dam Neck',p:[-75.9610,36.7680],c:'mil',a:.12,z:.5},
+  {t:'First Landing',p:[-76.0560,36.9120],c:'place',a:.16,z:.5},
+  {t:'Columbus St.',p:[-76.1312,36.84385],c:'av',a:.75,z:9},
+  {t:'Main St.',p:[-76.1312,36.84185],c:'av',a:.75,z:9},
+  {t:'Commerce Dr.',p:[-76.1312,36.84065],c:'av',a:.75,z:9},
+  {t:'Market St.',p:[-76.13535,36.8399],c:'av',a:.75,z:9,rot:-90},
+  {t:'Central Park Ave.',p:[-76.13405,36.8399],c:'av',a:.75,z:9,rot:-90},
+  {t:'Town Center Dr.',p:[-76.13255,36.8399],c:'av',a:.75,z:9,rot:-90},
+  {t:'Constitution Dr.',p:[-76.13105,36.8392],c:'av',a:.75,z:9,rot:-90},
+  {t:'I-264',p:[-76.0820,36.8405],c:'road',a:.07,z:.5},
+  {t:'Virginia Beach Blvd.',p:[-76.0720,36.8430],c:'road',a:.3,z:.6},
+  {t:'Shore Dr.',p:[-76.0350,36.9165],c:'road',a:.2,z:.8},
+  {t:'Laskin Rd.',p:[-76.0020,36.8570],c:'road',a:.2,z:.8},
+  {t:'General Booth Blvd.',p:[-75.9975,36.8120],c:'road',a:.2,z:.8},
+  {t:'Sandbridge Rd.',p:[-75.9800,36.7470],c:'road',a:.14,z:.8},
+  {t:'Sandpiper Rd.',p:[-75.9270,36.7180],c:'road',a:.2,z:.8},
+  {t:'Princess Anne Rd.',p:[-76.1080,36.7830],c:'road',a:.14,z:.8},
+  {t:'Indian River Rd.',p:[-76.1200,36.7480],c:'road',a:.14,z:.8},
+  {t:'Independence Blvd.',p:[-76.1170,36.8680],c:'road',a:.2,z:.8},
+  {t:'Great Neck Rd.',p:[-76.0640,36.8840],c:'road',a:.2,z:.8},
+  {t:'Bridge-Tunnel',p:[-76.0980,36.9550],c:'road',a:.1,z:.8}
+];
+for (let n = 1; n <= 42; n++) {
+  const s = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th';
+  const [lo, la] = blk(n, -190);
+  L.push({t:n + s, p:[lo, la], c:'num', a:n % 5 === 0 ? .1 : .3, z:9});
+}
+[['Atlantic Ave.',0,-3],['Pacific Ave.',115,0],['Arctic Ave.',215,3],['Baltic Ave.',335,5]].forEach(([t, d, shift]) => {
+  const n = d >= 335 ? 26.5 : 15.5 + shift;
+  const [lo, la] = blk(n, d + 7);
+  L.push({t, p:[lo, la], c:'av', a:.42, z:9, rot:-76});
+});
+function buildLabels() {
+  lbl.innerHTML = L.map((o, i) => `<text class="t ${o.c}" data-i="${i}" text-anchor="middle">${esc(o.t)}</text>`).join('');
+  L.forEach((o, i) => o.el = lbl.children[i]);
+}
+
+/* ---------- view ---------- */
+let W = 800, H = 600, queued = false;
+function queue() { if (!queued) { queued = true; requestAnimationFrame(render); } }
+const sx = lon => wx(lon) * V.k + V.tx, sy = lat => wy(lat) * V.k + V.ty;
+
+function render() {
+  queued = false;
+  const k = V.k;
+  world.setAttribute('transform', `matrix(${k} 0 0 ${k} ${V.tx} ${V.ty})`);
+  const lod = k < .05 ? 0 : k < .085 ? 1 : k < .42 ? 2 : 3;
+  map.className = 'mapwrap lod' + lod + (dragging ? ' drag' : '') + (S.mode === 'food' ? ' food' : '') + (S.pass ? ' passon' : '') + (S.base !== 'chart' ? ' tiles ' + S.base : '');
+  drawTiles();
+  $('#grid').style.display = lod >= 2 ? '' : 'none';
+  $('#tc').style.display = lod >= 2 ? '' : 'none';
+  $('#curbs').style.display = lod >= 2 ? '' : 'none';
+  $('#z-sm').style.display = lod >= 2 ? '' : 'none';
+  L.forEach(o => {
+    const show = k >= o.a && k < o.z;
+    o.el.style.display = show ? '' : 'none';
+    if (show) {
+      const x = sx(o.p[0]), y = sy(o.p[1]);
+      o.el.setAttribute('x', x.toFixed(1)); o.el.setAttribute('y', y.toFixed(1));
+      if (o.rot) o.el.setAttribute('transform', `rotate(${o.rot} ${x.toFixed(1)} ${y.toFixed(1)})`);
+    }
+  });
+  layoutPins();
+  layoutBlobs();
+  drawGraticule();
+  drawScale();
+}
+function drawScale() {
+  const opts = [.1,.25,.5,1,2,5,10], mPerMi = 1609.34;
+  let mi = opts[0]; for (const o of opts) if (o * mPerMi * V.k <= 130) mi = o;
+  $('#scaleb').style.width = (mi * mPerMi * V.k).toFixed(1) + 'px';
+  $('#scalet').textContent = mi + (mi === 1 ? ' mile' : ' miles');
+}
+function drawGraticule() {
+  const span = W / V.k / MX, stepMin = span > .3 ? 10 : span > .12 ? 5 : span > .05 ? 2 : span > .02 ? 1 : .5;
+  const st = stepMin / 60, lon0 = unx(-V.tx / V.k), lon1 = unx((W - V.tx) / V.k), lat1 = uny(-V.ty / V.k), lat0 = uny((H - V.ty) / V.k);
+  const g = [], t = [], fmt = v => { const tot = Math.round(Math.abs(v) * 120) / 2, d = Math.floor(tot / 60), m = tot - d * 60; return d + '°' + (m < 10 ? '0' : '') + m + '′'; };
+  for (let v = Math.ceil(lon0 / st) * st; v < lon1; v += st) { const x = sx(v).toFixed(1); g.push(`<line class="grat" x1="${x}" x2="${x}" y1="0" y2="${H}"/>`); t.push(`<text class="t tick" x="${x}" y="${H - 34}" text-anchor="middle">${fmt(v)}W</text>`); }
+  for (let v = Math.ceil(lat0 / st) * st; v < lat1; v += st) { const y = sy(v).toFixed(1); g.push(`<line class="grat" y1="${y}" y2="${y}" x1="0" x2="${W}"/>`); t.push(`<text class="t tick" x="${W - 8}" y="${(+y - 3).toFixed(1)}" text-anchor="end">${fmt(v)}N</text>`); }
+  $('#grat').innerHTML = g.join(''); $('#ticks').innerHTML = t.join('');
+}
+function fit(b, pad = 40, animate = true) {
+  const [w, s, e, n] = b;
+  const bw = wx(e) - wx(w), bh = wy(s) - wy(n);
+  const top = 48 + pad * .4, availH = Math.max(120, H - top - pad);
+  const k = Math.min(KMAX, Math.max(KMIN, Math.min((W - pad * 2) / bw, availH / bh)));
+  const cx = (wx(e) + wx(w)) / 2, cy = (wy(s) + wy(n)) / 2;
+  const tx = W / 2 - cx * k, ty = top + availH / 2 - cy * k;
+  animate ? fly(k, tx, ty) : (Object.assign(V, {k, tx, ty}), queue());
+}
+let anim = 0;
+function fly(k, tx, ty, ms = 650) {
+  cancelAnimationFrame(anim);
+  if (reduce) { Object.assign(V, {k, tx, ty}); queue(); return; }
+  const s = {...V}, t0 = performance.now();
+  const cs = [(W/2 - s.tx) / s.k, (H/2 - s.ty) / s.k], ce = [(W/2 - tx) / k, (H/2 - ty) / k];
+  const step = now => {
+    const u = Math.min(1, (now - t0) / ms), e = u < .5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2) / 2;
+    const kk = s.k * Math.pow(k / s.k, e), cx = cs[0] + (ce[0] - cs[0]) * e, cy = cs[1] + (ce[1] - cs[1]) * e;
+    V.k = kk; V.tx = W/2 - cx * kk; V.ty = H/2 - cy * kk; render();
+    if (u < 1) anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+}
+function zoomAt(f, x = W/2, y = H/2, animate = false) {
+  const k = Math.min(KMAX, Math.max(KMIN, V.k * f)), r = k / V.k;
+  const tx = x - (x - V.tx) * r, ty = y - (y - V.ty) * r;
+  if (animate) fly(k, tx, ty, 260); else { Object.assign(V, {k, tx, ty}); queue(); }
+}
+const wide = () => W > 700;
+function focusItem(x) {
+  const k = Math.max(V.k, x.t === 'street' || x.a === 'Oceanfront' ? .5 : x.a === 'Town Center' ? 1 : .22);
+  clearView();
+  const ox = wide() ? 170 : 0, oy = wide() ? 20 : -Math.min(H * .22, 120);
+  fly(k, W/2 + ox - wx(x.lon) * k, H/2 + oy - wy(x.lat) * k);
+}
+
+/* ---------- pins ---------- */
+const pinEls = new Map();
+let clusterEls = [];
+const visible = x => {
+  if (S.pass && !x[S.pass]) return false;
+  if (!S.types.has(x.t)) return false;
+  if (S.freeOnly && price(x, S.date, S.stay).st !== 'free') return false;
+  if (S.q) { const q = S.q.toLowerCase(); if (!(x.n + ' ' + x.addr + ' ' + x.a).toLowerCase().includes(q)) return false; }
+  return true;
+};
+function buildPins() {
+  D.forEach(x => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pin';
+    b.innerHTML = `<svg aria-hidden="true"><use href="#i-${x.t}"/></svg><span></span>${x.sp ? `<span class="n">${spShort(x)}</span>` : ''}`;
+    b.addEventListener('click', e => { e.stopPropagation(); select(x.id, true); });
+    pinsEl.appendChild(b); pinEls.set(x.id, b);
+  });
+}
+function refreshPins() {
+  D.forEach(x => {
+    const b = pinEls.get(x.id), p = price(x, S.date, S.stay);
+    b.classList.toggle('free', p.st === 'free');
+    b.classList.toggle('posted', p.st === 'posted');
+    b.classList.toggle('sel', S.sel === x.id);
+    b.querySelector('span').textContent = p.tag;
+    b.setAttribute('aria-label', `${x.n}, ${p.long}, ${spRow(x)}`);
+  });
+}
+function layoutPins() {
+  clusterEls.forEach(c => c.remove()); clusterEls = [];
+  const vis = D.filter(visible), pts = vis.map(x => ({x, sx:sx(x.lon), sy:sy(x.lat), used:false}));
+  const R = V.k < .05 ? 30 : V.k < .085 ? 20 : V.k < .2 ? 25 : 20;
+  D.forEach(x => { if (!vis.includes(x)) pinEls.get(x.id).hidden = true; });
+  const pr = {garage:0, lot:1, ramp:2, park:3, transit:3, street:4, private:5};
+  pts.sort((a, b) => (b.x.id === S.sel) - (a.x.id === S.sel) || pr[a.x.t] - pr[b.x.t]);
+  pts.forEach(p => {
+    if (p.used) return;
+    p.used = true;
+    const group = [p];
+    if (V.k < .85 && S.mode !== 'food') pts.forEach(q => { if (!q.used && q.x.id !== S.sel && Math.hypot(q.sx - p.sx, q.sy - p.sy) < R) { q.used = true; group.push(q); } });
+    const b = pinEls.get(p.x.id);
+    if (group.length === 1) {
+      b.hidden = false;
+      b.style.transform = `translate(${p.sx.toFixed(1)}px,${p.sy.toFixed(1)}px) translate(-50%,-50%)`;
+    } else {
+      group.forEach(q => pinEls.get(q.x.id).hidden = true);
+      const cx = group.reduce((s, q) => s + q.sx, 0) / group.length, cy = group.reduce((s, q) => s + q.sy, 0) / group.length;
+      const c = document.createElement('button');
+      c.type = 'button'; c.className = 'pin cl'; c.textContent = group.length;
+      const gs = spSum(group.map(q => q.x)).toLocaleString('en-US');
+      c.title = `${group.length} spots, ${gs} counted spaces`;
+      c.setAttribute('aria-label', `${group.length} parking spots here with ${gs} counted spaces. Zoom in.`);
+      c.style.transform = `translate(${cx.toFixed(1)}px,${cy.toFixed(1)}px) translate(-50%,-50%)`;
+      c.addEventListener('click', e => {
+        e.stopPropagation();
+        const lons = group.map(q => q.x.lon), lats = group.map(q => q.x.lat);
+        const pad = .0012 + (Math.max(...lons) - Math.min(...lons)) * .25;
+        fit([Math.min(...lons) - pad, Math.min(...lats) - pad, Math.max(...lons) + pad, Math.max(...lats) + pad], 70);
+      });
+      pinsEl.appendChild(c); clusterEls.push(c);
+    }
+  });
+}
+
+/* ---------- food and retail bubbles ---------- */
+let blobKey = '';
+const blobSize = v => Math.round(14 + 3 * Math.sqrt(v));
+function layoutBlobs() {
+  const box = $('#blobs');
+  if (S.mode !== 'food' || !(S.layF || S.layR)) { box.innerHTML = ''; blobKey = ''; return; }
+  const val = g => S.layF ? g.f : g.r;
+  const items = NODES.filter(o => S.layF || stores(o) > 0)
+    .map(o => ({ids:[o.id], names:[o.n], f:o.f, r:stores(o), x:sx(o.c[0]), y:sy(o.c[1])}))
+    .sort((a, b) => val(b) - val(a));
+  const out = [];
+  items.forEach(it => {
+    const hit = out.find(g => Math.hypot(g.x - it.x, g.y - it.y) < (blobSize(val(g)) + blobSize(val(it))) * .42);
+    if (hit) {
+      const w = hit.f + hit.r, v = it.f + it.r;
+      hit.x = (hit.x * w + it.x * v) / (w + v); hit.y = (hit.y * w + it.y * v) / (w + v);
+      hit.f += it.f; hit.r += it.r; hit.ids.push(...it.ids); hit.names.push(...it.names);
+    } else out.push(it);
+  });
+  const key = out.map(g => g.ids.join('+')).join('|') + S.layF + S.layR + S.node;
+  if (key !== blobKey) {
+    blobKey = key;
+    box.innerHTML = out.map((g, i) => {
+      const d = blobSize(val(g)), one = g.ids.length === 1;
+      return `<button type="button" class="blob${S.layF ? '' : ' ronly'}${one && S.node === g.ids[0] ? ' sel' : ''}" data-i="${i}" style="width:${d}px;height:${d}px" aria-label="${esc(g.names.join(', '))}: ${g.f} food and beverage outlets, ${g.r} stores" title="${esc(g.names.join(', '))}">${val(g)}${S.layF && S.layR && g.r ? `<em>${g.r}</em>` : ''}</button>`;
+    }).join('');
+    box.querySelectorAll('.blob').forEach(b => b.addEventListener('click', e => {
+      e.stopPropagation();
+      const g = out[+b.dataset.i];
+      if (g.ids.length === 1) { selectNode(g.ids[0]); return; }
+      const ns = NODES.filter(o => g.ids.includes(o.id)), lons = ns.map(o => o.c[0]), lats = ns.map(o => o.c[1]);
+      fit([Math.min(...lons) - .008, Math.min(...lats) - .008, Math.max(...lons) + .008, Math.max(...lats) + .008], 60);
+    }));
+  }
+  out.forEach((g, i) => { const b = box.children[i]; if (b) b.style.transform = `translate(${g.x.toFixed(1)}px,${g.y.toFixed(1)}px) translate(-50%,-50%)`; });
+}
+function renderAreas() {
+  const rows = NODES.map(o => ({o, f:o.f, r:stores(o), p:spSum(near(o).map(i => i.x))}));
+  rows.sort((a, b) => b[S.asort] - a[S.asort] || b.f - a.f);
+  const mx = k => Math.max(...rows.map(r => r[k])) || 1;
+  const mf = mx('f'), mr = mx('r'), mp = mx('p');
+  const line = (c, v, m, t) => `<span class="bar"><span><i class="${c}" style="width:${(v / m * 100).toFixed(1)}%"></i></span><span>${t}</span></span>`;
+  $('#areas').innerHTML = rows.map(({o, f, r, p}) => `<button type="button" class="arow" data-n="${o.id}"${S.node === o.id ? ' aria-current="true"' : ''}><b>${esc(o.n)}</b>${line('f', f, mf, f + ' F&B')}${line('r', r, mr, r ? r + ' stores' : 'none listed')}${line('p', p, mp, p ? p.toLocaleString('en-US') + ' spaces' : 'no city lots')}</button>`).join('');
+}
+
+/* ---------- list ---------- */
+function renderList() {
+  const box = $('#list'), rows = [];
+  AREAS.forEach(a => {
+    const items = D.filter(x => x.a === a && visible(x)).map(x => ({x, p:price(x, S.date, S.stay)}));
+    if (!items.length) return;
+    const ord = s => s.st === 'free' ? 0 : s.st === 'paid' ? 1 : 2;
+    const byCost = (u, v) => ord(u.p) - ord(v.p) || (u.p.c ?? 0) - (v.p.c ?? 0) || (v.x.sp || 0) - (u.x.sp || 0);
+    items.sort(S.sort === 'spaces' ? (u, v) => (v.x.sp || 0) - (u.x.sp || 0) || ord(u.p) - ord(v.p)
+      : S.sort === 'pass' ? (u, v) => (v.x.v || 0) - (u.x.v || 0) || byCost(u, v)
+      : byCost);
+    const nFree = items.filter(i => i.p.st === 'free').length;
+    rows.push(`<div class="group"><h2><span>${esc(a)}</span><small>${nFree} of ${items.length} free · ${spSum(items.map(i => i.x)).toLocaleString('en-US')} spaces</small></h2>`);
+    items.forEach(({x, p}) => rows.push(
+      `<button type="button" class="row" data-id="${x.id}"${S.sel === x.id ? ' aria-current="true"' : ''}><svg aria-hidden="true"><use href="#i-${x.t}"/></svg><span><b>${esc(x.n)}</b><small>${esc(x.addr)}${x.v ? '<i class="vt">Voucher</i>' : ''}</small></span><span class="rt"><span class="tag ${p.st === 'paid' ? '' : p.st}">${esc(p.tag)}</span><small${x.sp || x.spt ? '' : ' class="none"'}>${esc(spRow(x))}</small></span></button>`));
+    rows.push('</div>');
+  });
+  box.innerHTML = rows.join('') || `<p class="empty">Nothing matches. Clear the search or turn a type back on.</p>`;
+}
+
+/* ---------- detail card ---------- */
+const card = $('#card');
+function renderCard() {
+  const area = NODES.find(n => n.id === S.node);
+  if (area) { renderAreaCard(area); return; }
+  const x = D.find(i => i.id === S.sel);
+  if (!x) { card.hidden = true; return; }
+  const p = price(x, S.date, S.stay), q = encodeURIComponent(x.addr.includes('Virginia Beach') ? x.addr : x.addr + ', Virginia Beach, VA');
+  const curbQ = ['street'].includes(x.t) ? encodeURIComponent(x.lat.toFixed(5) + ',' + x.lon.toFixed(5)) : q;
+  const tb = p.tb ? `<div class="scroller"><table class="rates"><tr><th scope="row">Hours</th>${[1,2,3,4,5,6,7,8,9].map(h => `<td${S.stay === h ? ' class="on"' : ''}>${h}</td>`).join('')}</tr><tr><th scope="row">Total</th>${[1,2,3,4,5,6,7,8,9].map(h => `<td${S.stay === h ? ' class="on"' : ''}>$${p.tb[h-1]}</td>`).join('')}</tr></table></div>` : '';
+  const perks = [];
+  if (x.v) perks.push('Resident voucher');
+  if (x.s) perks.push('Seasonal lot permit');
+  if (x.sr) perks.push('Senior permit');
+  const facts = x.tel ? 'Office ' + x.tel : '';
+  const capMain = x.sp ? `<b>${spShort(x)}</b> ${esc(x.spu || 'spaces')}` : x.spt ? `<b>${esc(x.spt)}</b> parking` : `<b>No published count</b>`;
+  const capNote = x.spn || (x.sp ? 'Source: ' + (x.via || 'City parking page') + '.' : x.t === 'street' ? 'No space count is published for this stretch.' : 'Ask the site if you need capacity.');
+  const capLink = x.ss ? ` <a href="${esc(x.ss[1])}" target="_blank" rel="noopener">${esc(x.ss[0])}</a>` : '';
+  card.innerHTML = `
+    <button type="button" class="x" id="close" aria-label="Close details">×</button>
+    <div class="kind">${esc(KIND[x.t])}</div>
+    <h3>${esc(x.n)}</h3>
+    <div class="price"><span class="tag ${p.st === 'paid' ? '' : p.st}">${esc(p.tag)}</span><small>${esc(p.long)}</small></div>
+    <div class="addr"><span>${esc(x.addr)}</span><button type="button" class="copy" id="copy">Copy</button></div>
+    <div class="cap">${capMain}<small>${esc(capNote)}${capLink}</small></div>
+    ${facts ? `<p class="meta">${esc(facts)}</p>` : ''}
+    ${tb}
+    <ul>${x.r.map(s => `<li>${esc(s)}</li>`).join('')}</ul>
+    ${perks.length ? `<div class="perk">${perks.map(s => `<span>${s}</span>`).join('')}</div>` : ''}
+    ${x.v && p.c > 0 ? `<p class="meta">The $50 resident voucher covers ${Math.floor(50 / p.c)} ${Math.floor(50 / p.c) === 1 ? 'stay' : 'stays'} of this length here.</p>` : ''}
+    ${x.ap ? `<p class="approx">Pin position is approximate. Directions use the street address.</p>` : ''}
+    <div class="links">
+      <a class="go" href="https://www.google.com/maps/search/?api=1&query=${curbQ}" target="_blank" rel="noopener">Google Maps</a>
+      <a href="https://maps.apple.com/?q=${curbQ}" target="_blank" rel="noopener">Apple Maps</a>
+      <a href="${esc(x.src)}" target="_blank" rel="noopener">${esc(x.via || 'City page')}</a>
+    </div>`;
+  card.hidden = false;
+  $('#close').onclick = () => select(null);
+  const cp = $('#copy');
+  cp.onclick = () => {
+    const done = t => { cp.textContent = t; setTimeout(() => cp.textContent = 'Copy', 1400); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(x.addr).then(() => done('Copied'), () => { selectText(cp.previousElementSibling); done('Selected'); });
+    else { selectText(cp.previousElementSibling); done('Selected'); }
+  };
+}
+function renderAreaCard(o) {
+  const nr = near(o), sp = spSum(nr.map(i => i.x)), vc = nr.filter(i => i.x.v), st = stores(o), mi = (o.r / 1609).toFixed(1);
+  const spots = nr.slice(0, 7).map(({x}) => {
+    const p = price(x, S.date, S.stay);
+    return `<li><button type="button" data-go="${x.id}"><span>${esc(x.n)}${x.v ? '<i class="vt">Voucher</i>' : ''}</span><small>${esc(p.tag)} · ${esc(spRow(x))}</small></button></li>`;
+  }).join('');
+  card.innerHTML = `
+    <button type="button" class="x" id="close" aria-label="Close details">×</button>
+    <div class="kind">Food and retail area</div>
+    <h3>${esc(o.n)}</h3>
+    <div class="cap"><b>${o.f}</b> food and beverage outlets<small>${(o.f / F_TOTAL * 100).toFixed(1)}% of the citywide total</small></div>
+    <div class="cap"><b>${st || 'None'}</b> ${st ? 'stores in major centers' : 'listed in major centers'}${st ? `<small>${o.shops.map(s => esc(s[0]) + ' ' + s[1]).join(', ')}</small>` : ''}</div>
+    <div class="cap">${sp ? `<b>${sp.toLocaleString('en-US')}</b> public garage and lot spaces` : '<b>No</b> city garages or public lots'}<small>Within ${mi} miles of the area's center.${vc.length ? ` ${vc.length} of ${nr.length} take the resident voucher.` : nr.length ? ' None take the resident voucher.' : ' Expect private customer lots and street parking.'}</small></div>
+    ${spots ? `<ul class="near">${spots}</ul>` : ''}`;
+  card.hidden = false;
+  $('#close').onclick = () => selectNode(null);
+  card.querySelectorAll('[data-go]').forEach(b => b.onclick = () => select(b.dataset.go));
+}
+function selectNode(id) {
+  S.node = id; S.sel = null;
+  renderAll();
+  blobKey = ''; queue();
+  const o = NODES.find(n => n.id === id);
+  if (o) {
+    if (matchMedia('(max-width:860px)').matches) map.scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block:'start'});
+    const span = Math.max(o.r * 1.25, 2600), dLon = span / MX, dLat = span / MY;
+    clearView();
+    fit([o.c[0] - dLon, o.c[1] - dLat, o.c[0] + dLon, o.c[1] + dLat], 40);
+  }
+}
+function selectText(n) { const r = document.createRange(); r.selectNodeContents(n); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+function select(id, fromMap = false) {
+  S.sel = id; S.node = null; blobKey = '';
+  renderAll();
+  const x = D.find(i => i.id === id);
+  if (x && !fromMap) {
+    if (matchMedia('(max-width:860px)').matches) map.scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block:'start'});
+    focusItem(x);
+  } else if (x && V.k < .085) focusItem(x);
+}
+
+/* ---------- filters ---------- */
+function buildChips() {
+  const box = $('#chips');
+  box.innerHTML = `<button type="button" class="chip freeonly" id="fo" aria-pressed="false">Free on this date</button>` +
+    Object.entries(TYPES).map(([k, v]) => `<button type="button" class="chip" data-t="${k}" aria-pressed="true"><svg aria-hidden="true"><use href="#i-${k}"/></svg>${v} <em></em></button>`).join('');
+  box.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'fo') { S.freeOnly = !S.freeOnly; b.setAttribute('aria-pressed', S.freeOnly); }
+    else { const t = b.dataset.t; S.types.has(t) ? S.types.delete(t) : S.types.add(t); b.setAttribute('aria-pressed', S.types.has(t)); }
+    renderAll();
+  });
+}
+function seasonLine() {
+  const m = md(S.date), d = new Date(S.date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  const n = D.filter(x => price(x, S.date, S.stay).st === 'free').length, c = D.filter(x => x.t !== 'private' && x.t !== 'street').length;
+  let msg;
+  if (m >= '11-01' || m <= '03-31') msg = '<b>Off-season.</b> Resort lots and most meters are free until April 1. Oceanfront garages still charge.';
+  else if (m <= '04-30') msg = '<b>Oceanfront paid season.</b> Sandbridge stays free until May 1.';
+  else if (m <= '09-30') msg = '<b>Peak season.</b> Every Oceanfront, Croatan and Sandbridge lot charges.';
+  else msg = '<b>Paid season ends Oct. 31.</b> Croatan and Sandbridge are already free.';
+  const tot = (Math.round(spSum(D) / 100) * 100).toLocaleString('en-US');
+  $('#season').innerHTML = `${esc(d)}: ${msg} ${n} of ${D.length} mapped locations are free on this date.`;
+}
+function renderCurbs() {
+  document.querySelectorAll('#curbs .st').forEach(el => {
+    const x = D.find(i => i.id === el.dataset.id), p = price(x, S.date, S.stay);
+    el.setAttribute('class', 'st ' + (p.off ? 'off' : p.st === 'free' ? 'free' : 'paid') + (S.sel === x.id ? ' sel' : ''));
+    el.style.display = visible(x) ? '' : 'none';
+  });
+  const z = $('#z-sm'), m = D.find(i => i.id === 'sm'), p = price(m, S.date, S.stay);
+  z.setAttribute('class', 'zone' + (p.st === 'free' ? ' free' : ''));
+}
+function renderSummary() {
+  const fmt = n => n.toLocaleString('en-US');
+  const withLots = NODES.filter(o => near(o).length), fNear = withLots.reduce((s, o) => s + o.f, 0);
+  const pct = Math.round(fNear / F_TOTAL * 100);
+  const vouch = D.filter(x => x.v).length;
+  const spaces = Math.round(spSum(D) / 100) * 100;
+  $('#kpis').innerHTML = [[fmt(F_TOTAL), 'F&B outlets in 18 areas'], ['~' + fmt(spaces), 'parking spaces counted'], [pct + '%', 'of F&B outlets near a public lot'], [String(vouch), 'resident voucher locations']]
+    .map(([v, l]) => `<div><dt>${esc(l)}</dt><dd>${esc(v)}</dd></div>`).join('');
+  const byF = [...NODES].sort((a, b) => b.f - a.f), topNo = byF.find(o => !near(o).length);
+  const byR = [...NODES].sort((a, b) => stores(b) - stores(a)).slice(0, 3), rWith = byR.filter(o => near(o).length);
+  const oc = NODES.find(o => o.id === 'ocean'), tc = NODES.find(o => o.id === 'tc');
+  const list = (a) => a.length < 3 ? a.join(' and ') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  $('#findings').innerHTML = [
+    `Public garages and lots serve only ${withLots.length} of 18 commercial areas, which together hold ${pct}% of F&amp;B outlets. Supply is concentrated at the Oceanfront and Town Center.`,
+    `${esc(topNo.n)} has the most F&amp;B outlets of any area (${topNo.f}) and no city garage or public lot nearby. Most suburban corridors rely on private customer parking.`,
+    `${esc(list(byR.map(o => o.sn || o.n)))} hold the most stores in major centers. ${rWith.length ? esc(list(rWith.map(o => o.sn || o.n))) + (rWith.length === 1 ? ' is the only one' : ' are the only ones') + ' with public structured parking.' : 'None has public structured parking.'}`,
+    `The resident voucher is accepted at ${vouch} mapped locations, all at the Oceanfront. Oceanfront garages charge year-round, while Town Center's ${fmt(spSum(near(tc).map(i => i.x).filter(x => x.a === 'Town Center')))} garage spaces are free.`
+  ].map(t => `<li>${t}</li>`).join('');
+}
+function renderAll() {
+  $('#stayv').textContent = hrs(S.stay);
+  $('#foodp').hidden = S.mode !== 'food'; $('#parkp').hidden = S.mode !== 'park';
+  $('#tabs').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === S.mode));
+  $('#pass').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.p === S.pass));
+  $('#vshow').setAttribute('aria-pressed', S.pass === 'v');
+  seasonLine(); refreshPins(); renderCurbs(); renderList(); renderAreas(); renderCard(); queue();
+  if (!renderAll.once) { renderAll.once = 1; renderSummary(); }
+  $('#chips').querySelectorAll('[data-t]').forEach(b => b.querySelector('em').textContent = D.filter(x => x.t === b.dataset.t).length);
+}
+
+/* ---------- input ---------- */
+const VIEWS = [['City',[-76.215,36.522,-75.86,36.935]],['Oceanfront',[-75.9905,36.8285,-75.9655,36.872]],['Rudee & Croatan',[-75.998,36.785,-75.958,36.84]],['Town Center',[-76.1395,36.8385,-76.1275,36.8455]],['Shore Drive',[-76.18,36.885,-76.02,36.93]],['Sandbridge',[-75.975,36.665,-75.905,36.755]],['Pungo',[-76.13,36.56,-75.96,36.73]]];
+function buildViews() {
+  const box = $('#views');
+  box.innerHTML = VIEWS.map(([n], i) => `<button type="button" data-i="${i}" aria-pressed="${i === 0}">${n}</button>`).join('');
+  box.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    box.querySelectorAll('button').forEach(o => o.setAttribute('aria-pressed', o === b));
+    fit(VIEWS[+b.dataset.i][1], W < 500 ? 16 : 36);
+  });
+}
+const clearView = () => $('#views').querySelectorAll('button').forEach(o => o.setAttribute('aria-pressed', 'false'));
+let dragging = false;
+const pts = new Map(); let last = null, pinch = null, moved = 0;
+const inUi = t => t.closest('.card,.views,.zoom,.pin,.blob,.basemap,.tilenote,.attrib');
+map.addEventListener('pointerdown', e => {
+  if (inUi(e.target)) return;
+  map.setPointerCapture(e.pointerId);
+  pts.set(e.pointerId, [e.offsetX, e.offsetY]);
+  cancelAnimationFrame(anim);
+  moved = 0; dragging = true; last = [e.clientX, e.clientY]; pinch = null;
+});
+map.addEventListener('pointermove', e => {
+  if (!pts.has(e.pointerId)) return;
+  const r = map.getBoundingClientRect();
+  pts.set(e.pointerId, [e.clientX - r.left, e.clientY - r.top]);
+  if (pts.size === 2) {
+    const [a, b] = [...pts.values()], dist = Math.hypot(a[0]-b[0], a[1]-b[1]), mid = [(a[0]+b[0])/2, (a[1]+b[1])/2];
+    if (pinch) { zoomAt(dist / pinch.dist, mid[0], mid[1]); V.tx += mid[0] - pinch.mid[0]; V.ty += mid[1] - pinch.mid[1]; }
+    pinch = {dist, mid}; moved += 10; clearView(); return;
+  }
+  if (!last) return;
+  const dx = e.clientX - last[0], dy = e.clientY - last[1];
+  last = [e.clientX, e.clientY]; moved += Math.abs(dx) + Math.abs(dy);
+  V.tx += dx; V.ty += dy; if (moved > 4) clearView(); queue();
+});
+const end = e => {
+  pts.delete(e.pointerId);
+  if (pts.size === 0) { dragging = false; last = null; pinch = null; queue(); }
+  else { const r = map.getBoundingClientRect(), p = [...pts.values()][0]; last = [p[0] + r.left, p[1] + r.top]; pinch = null; }
+};
+map.addEventListener('pointerup', end); map.addEventListener('pointercancel', end);
+map.addEventListener('wheel', e => {
+  if (e.target.closest('.card')) return;
+  e.preventDefault();
+  const r = map.getBoundingClientRect();
+  cancelAnimationFrame(anim); clearView();
+  zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? .012 : .0022)), e.clientX - r.left, e.clientY - r.top);
+}, {passive:false});
+map.addEventListener('dblclick', e => {
+  if (inUi(e.target)) return;
+  const r = map.getBoundingClientRect(); clearView(); zoomAt(1.8, e.clientX - r.left, e.clientY - r.top, true);
+});
+map.addEventListener('keydown', e => {
+  if (e.target !== map) return;
+  const s = 60, m = {ArrowLeft:[s,0], ArrowRight:[-s,0], ArrowUp:[0,s], ArrowDown:[0,-s]}[e.key];
+  if (m) { e.preventDefault(); V.tx += m[0]; V.ty += m[1]; clearView(); queue(); }
+  else if (e.key === '+' || e.key === '=') { clearView(); zoomAt(1.5, W/2, H/2, true); }
+  else if (e.key === '-') { clearView(); zoomAt(1/1.5, W/2, H/2, true); }
+  else if (e.key === 'Escape') select(null);
+});
+$('#zin').onclick = () => { clearView(); zoomAt(1.7, W/2, H/2, true); };
+$('#zout').onclick = () => { clearView(); zoomAt(1/1.7, W/2, H/2, true); };
+$('#list').addEventListener('click', e => { const b = e.target.closest('.row'); if (b) select(b.dataset.id); });
+$('#q').addEventListener('input', e => { S.q = e.target.value.trim(); renderAll(); });
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.mode = b.dataset.m; S.node = null; blobKey = ''; renderAll();
+});
+$('#pass').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { S.pass = b.dataset.p; renderAll(); } });
+$('#vshow').addEventListener('click', () => { S.pass = S.pass === 'v' ? '' : 'v'; renderAll(); });
+$('#layers').addEventListener('click', e => {
+  const b = e.target.closest('[data-l]'); if (!b) return;
+  if (b.dataset.l === 'f') S.layF = !S.layF; else S.layR = !S.layR;
+  b.setAttribute('aria-pressed', b.dataset.l === 'f' ? S.layF : S.layR);
+  queue();
+});
+$('#asort').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.asort = b.dataset.s;
+  $('#asort').querySelectorAll('button').forEach(o => o.setAttribute('aria-pressed', o === b));
+  renderAreas();
+});
+$('#areas').addEventListener('click', e => { const b = e.target.closest('.arow'); if (b) selectNode(b.dataset.n); });
+$('#sort').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.sort = b.dataset.s;
+  $('#sort').querySelectorAll('button').forEach(o => o.setAttribute('aria-pressed', o === b));
+  renderList();
+});
+$('#date').addEventListener('change', e => { if (e.target.value) { S.date = e.target.value; renderAll(); } });
+$('#stay').addEventListener('input', e => { S.stay = +e.target.value; renderAll(); });
+$('#today').onclick = () => { S.date = NY(); $('#date').value = S.date; renderAll(); };
+$('#summer').onclick = () => {
+  const y = +NY().slice(0, 4) + (NY().slice(5) > '07-15' ? 1 : 0), d = new Date(y, 6, 11, 12);
+  while (d.getDay() !== 6) d.setDate(d.getDate() + 1);
+  S.date = `${y}-07-${String(d.getDate()).padStart(2, '0')}`; $('#date').value = S.date; renderAll();
+};
+
+function resize() {
+  const r = map.getBoundingClientRect();
+  const first = W === 800 && H === 600 && !resize.done;
+  const cx = (W/2 - V.tx) / V.k, cy = (H/2 - V.ty) / V.k;
+  W = r.width; H = r.height;
+  if (first) { resize.done = true; fit(VIEWS[0][1], W < 500 ? 16 : 36, false); }
+  else { V.tx = W/2 - cx * V.k; V.ty = H/2 - cy * V.k; queue(); }
+}
+
+/* ---------- street and satellite tiles ---------- */
+const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+const BASES = {
+  streets:{max:19, layers:[(z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`],
+    attr:'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'},
+  satellite:{max:19, layers:[(z, x, y) => `${ESRI}World_Imagery/MapServer/tile/${z}/${y}/${x}`, (z, x, y) => `${ESRI}Reference/World_Transportation/MapServer/tile/${z}/${y}/${x}`, (z, x, y) => `${ESRI}Reference/World_Boundaries_and_Places/MapServer/tile/${z}/${y}/${x}`],
+    attr:'Imagery © <a href="https://www.esri.com/" target="_blank" rel="noopener">Esri</a>, Maxar, Earthstar Geographics and the GIS User Community'}
+};
+const tileBox = $('#tiles'), tcache = new Map();
+let zCur = null, zPrev = null, tileState = 'unknown';
+const gpx = (zz, lon) => (lon + 180) / 360 * 256 * 2 ** zz;
+const gpy = (zz, lat) => (1 - mercY(lat) / Math.PI) / 2 * 256 * 2 ** zz;
+function tileScreen(zz, X, Y) {
+  const Wz = 256 * 2 ** zz, lon = X / Wz * 360 - 180, m = Math.PI * (1 - 2 * Y / Wz);
+  return [(lon - LON0) * MX * V.k + V.tx, (M0 - m) * RM * V.k + V.ty];
+}
+function tileRange(zz) {
+  const n = 2 ** zz, cl = v => Math.max(0, Math.min(n - 1, v));
+  const lonA = unx(-V.tx / V.k), lonB = unx((W - V.tx) / V.k), latA = uny(-V.ty / V.k), latB = uny((H - V.ty) / V.k);
+  return [cl(Math.floor(gpx(zz, lonA) / 256)), cl(Math.floor(gpx(zz, lonB) / 256)), cl(Math.floor(gpy(zz, latA) / 256)), cl(Math.floor(gpy(zz, latB) / 256))];
+}
+function drawTiles() {
+  const b = BASES[S.base];
+  if (!b) { if (tcache.size) { tileBox.textContent = ''; tcache.clear(); } zCur = zPrev = null; return; }
+  const z = Math.max(3, Math.min(b.max, Math.round(Math.log2(MX * V.k * 360 / 256))));
+  if (z !== zCur) { zPrev = zCur; zCur = z; }
+  const zs = zPrev != null ? [zPrev, zCur] : [zCur], need = new Set();
+  let pending = 0;
+  b.layers.forEach((url, li) => zs.forEach(zz => {
+    const [x0, x1, y0, y1] = tileRange(zz);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 120) return;
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+      const key = `${S.base}/${li}/${zz}/${x}/${y}`;
+      need.add(key);
+      let img = tcache.get(key);
+      if (!img) {
+        img = new Image(); img.alt = ''; img.decoding = 'async'; img.draggable = false;
+        img.className = li ? 'o' : 'b';
+        img.style.zIndex = li * 2 + (zz === zCur ? 1 : 0);
+        img.onload = () => { img.dataset.ok = 1; tileState = 'ok'; if (zPrev != null) queue(); };
+        img.onerror = () => { img.dataset.ok = 1; if (tileState !== 'ok') tilesBlocked(); };
+        img.src = url(zz, x, y);
+        tileBox.appendChild(img); tcache.set(key, img);
+      } else img.style.zIndex = li * 2 + (zz === zCur ? 1 : 0);
+      if (zz === zCur && !img.dataset.ok) pending++;
+      const [l, t] = tileScreen(zz, x * 256, y * 256), [r, bt] = tileScreen(zz, (x + 1) * 256, (y + 1) * 256);
+      const L0 = Math.floor(l), T0 = Math.floor(t);
+      img.style.transform = `translate(${L0}px,${T0}px)`;
+      img.style.width = (Math.ceil(r) - L0) + 'px'; img.style.height = (Math.ceil(bt) - T0) + 'px';
+    }
+  }));
+  if (!pending && zPrev != null) { zPrev = null; queue(); }
+  tcache.forEach((img, key) => { if (!need.has(key)) { img.remove(); tcache.delete(key); } });
+}
+let noteTimer = 0;
+function tileNote(msg) {
+  const n = $('#tilenote'); n.textContent = msg; n.hidden = false;
+  clearTimeout(noteTimer); noteTimer = setTimeout(() => n.hidden = true, 6000);
+}
+function tilesBlocked() {
+  tileState = 'blocked';
+  $('#basemap').querySelectorAll('[data-b]:not([data-b=chart])').forEach(b => { b.setAttribute('aria-disabled', 'true'); b.title = 'Not available in this preview'; });
+  if (S.base !== 'chart') { setBase('chart', false); tileNote('Street and satellite maps could not load here. They work when this page is hosted on a regular website.'); }
+}
+function setBase(name, save = true) {
+  S.base = name;
+  $('#basemap').querySelectorAll('[data-b]').forEach(b => b.setAttribute('aria-pressed', b.dataset.b === name));
+  const a = $('#attrib'), bb = BASES[name];
+  a.hidden = !bb; a.innerHTML = bb ? bb.attr + '. Pins are approximate; use Directions for exact locations.' : '';
+  if (save) try { localStorage.setItem('vbpm-base', name); } catch (e) {}
+  queue();
+}
+$('#basemap').addEventListener('click', e => {
+  const b = e.target.closest('[data-b]'); if (!b) return;
+  if (b.dataset.b !== 'chart' && tileState === 'blocked') { tileNote('Street and satellite maps can\'t load in this preview. They work when this page is hosted on a regular website.'); return; }
+  setBase(b.dataset.b);
+});
+function probeTiles() {
+  let saved = null; try { saved = localStorage.getItem('vbpm-base'); } catch (e) {}
+  const p = new Image();
+  p.onload = () => { tileState = 'ok'; if (S.base === 'chart') setBase(saved && BASES[saved] ? saved : saved === 'chart' ? 'chart' : 'streets', false); };
+  p.onerror = () => { if (tileState !== 'ok') tilesBlocked(); };
+  p.src = 'https://tile.openstreetmap.org/10/295/399.png';
+}
+
+/* ---------- boot ---------- */
+buildWorld(); buildLabels(); buildPins(); buildChips(); buildViews();
+$('#date').value = S.date; $('#stay').value = S.stay;
+new ResizeObserver(resize).observe(map);
+resize(); renderAll(); probeTiles();
+})();
+</script>
+
+</body>
+</html>
